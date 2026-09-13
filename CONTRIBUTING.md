@@ -1,40 +1,36 @@
-# Contributing
+# Contributing to Cyber Workbench
 
-Take a look through the [Wiki pages](https://github.com/gchq/CyberChef/wiki) for guides on [compiling CyberChef](https://github.com/gchq/CyberChef/wiki/Getting-started) and [adding new operations](https://github.com/gchq/CyberChef/wiki/Adding-a-new-operation).
+Cyber Workbench combines upstream CyberChef with a small Tauri desktop shell and local Ollama bridge. Contributions should preserve CyberChef's local-first model and avoid adding cloud dependencies unless explicitly justified.
 
-There are lots of opportunities to contribute to CyberChef. If you want ideas, take a look at any [Issues](https://github.com/gchq/CyberChef/issues) tagged with '[help wanted](https://github.com/gchq/CyberChef/labels/help%20wanted)'.
+## Setup
 
-Before your contributions can be accepted, you must:
+Use Node.js 24–26 and Rust. Then run:
 
- - Fork the CyberChef repo
- - Create a new branch within your fork for the changes
- - Push your changes to your fork.
- - Sign the [GCHQ Contributor Licence Agreement](https://cla-assistant.io/gchq/CyberChef)
- - Submit a pull request.
+```sh
+npm install
+```
 
-Please note that we will ***reject*** pull requests from the master branch of your fork owing to the mess it makes of our own working repositories and the extra work entailed.
+Useful checks:
 
-## Coding conventions
+```sh
+npm run lint
+npm test
+npm run desktop:bundle
+```
 
-* Indentation: Each block should consist of 4 spaces
-* Object/namespace identifiers: CamelCase
-* Function/variable names: camelCase
-* Constants: UNDERSCORE_UPPER_CASE
-* Source code encoding: UTF-8 (without BOM)
-* All source files must end with a newline
-* Line endings: UNIX style (\n)
+## Where changes belong
 
+- CyberChef engine and operations: `src/` and its existing tests.
+- Workbench shell and AI behavior: `desktop/`.
+- Tauri launcher and packaging: `src-tauri/`.
 
-## Design Principles
+For a new CyberChef operation, use `npm run newop`, implement it under `src/core/operations/`, and add tests under `tests/operations/tests/`.
 
-1. If at all possible, all operations and features should be client-side and not rely on connections to an external server. This increases the utility of CyberChef on closed networks and in virtual machines that are not connected to the Internet. Calls to external APIs may be accepted if there is no other option, but not for critical components.
-2. Latency should be kept to a minimum to enhance the user experience. This means that operation code should sit on the client and be executed there. However, as a trade-off between latency and bandwidth, operation code with large dependencies can be loaded in discrete modules in order to reduce the size of the initial download. The downloading of additional modules must remain entirely transparent so that the user is not inconvenienced.
-3. Large libraries should be kept in separate modules so that they are not downloaded by everyone who uses the app, just those who specifically require the relevant operations.
-4. Use Vanilla JS if at all possible to reduce the number of libraries required and relied upon. Frameworks like jQuery, although included, should not be used unless absolutely necessary.
+## Pull requests
 
+1. Branch from `main` in this repository.
+2. Keep changes focused and include tests where practical.
+3. Run the relevant checks before opening a pull request.
+4. Describe any local-model behavior, prompt change, or privacy implication.
 
-With these principles in mind, any changes or additions to CyberChef should keep it:
-
- - Standalone
- - Efficient
- - As small as possible
+This is a derivative project, not GCHQ's CyberChef repository. Do not submit Cyber Workbench-specific changes to upstream CyberChef. Upstream-compatible CyberChef fixes can be proposed separately to [GCHQ/CyberChef](https://github.com/gchq/CyberChef) under its contribution rules.

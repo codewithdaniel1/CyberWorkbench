@@ -13,6 +13,16 @@ All major and minor version changes will be documented in this file. Details of 
 
 ## Details
 
+### Cyber Workbench 0.1.0 - 2026-09-13
+
+- Package CyberChef in a macOS Tauri desktop application called Cyber Workbench.
+- Add a local Ollama/CyberSLM analysis panel with progress and cancellation feedback.
+- Add a visible, clean Chef workspace handoff containing the real input, recipe, and output.
+- Ground AI operation suggestions in CyberChef's live operation registry.
+- Add the Workbench visual theme and desktop application icon.
+
+The release is a derivative-workbench layer on top of upstream CyberChef 11.4.0. Files, IOCs, History, automated recipe insertion, and file triage remain future work.
+
 ### [11.4.0] - 2026-08-18
 This release includes a security fix
 - Security: patch XSS in Regular expression module [@Ne0re0]
@@ -1598,4 +1608,3 @@ Breaking changes:
 [#2686]: https://github.com/gchq/CyberChef/pull/2686
 [#2685]: https://github.com/gchq/CyberChef/pull/2685
 [#2684]: https://github.com/gchq/CyberChef/pull/2684
-

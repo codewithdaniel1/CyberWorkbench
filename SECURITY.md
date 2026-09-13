@@ -1,18 +1,15 @@
-# Security Policy
+# Security policy
 
-## Support
+## Supported version
 
-CyberChef is supported on a best endeavours basis.
-Patches will be applied to the latest version rather than retroactively to older versions.
-To ensure you are using the most secure version of CyberChef, please make sure you have the [latest release](https://github.com/gchq/CyberChef/releases/latest). [The official website](https://gchq.github.io/CyberChef/) is always up to date.
+Security fixes are made against the current `main` branch of Cyber Workbench.
 
-No guarantee is offered for the correctness or security of CyberChef. In paticular, the security of cryptographic operations should not be relied upon.
+## Reporting a vulnerability
 
-## Reporting a Vulnerability
+Do not publish a vulnerability before a fix is available. Use a private GitHub security advisory for the [Cyber Workbench repository](https://github.com/codewithdaniel1/CyberWorkbench/security/advisories/new) when available, or contact the repository owner through GitHub with the details needed to reproduce the issue.
 
-If you discover a vulnerability in CyberChef, please do not publicly disclose it, and do not create a GitHub issue.
+For vulnerabilities in unmodified upstream CyberChef code, follow [CyberChef's upstream security policy](https://github.com/gchq/CyberChef/blob/master/SECURITY.md) as well.
 
-Instead, send an email as soon as possible to [CyberChefSecurity@gchq.gov.uk](mailto:CyberChefSecurity@gchq.gov.uk).
-The report will be acknowledged and actioned urgently by the CyberChef maintainers.
+## Local AI boundary
 
-If you do not receive a timely acknowledgement, please notify [oss@gchq.gov.uk](mailto:oss@gchq.gov.uk) and [CyberChef@gchq.gov.uk](mailto:CyberChef@gchq.gov.uk) of your vulnerability report.
+Cyber Workbench sends AI requests only to Ollama on `127.0.0.1:11434`. The selected local model may produce incorrect or unsafe suggestions. Treat all AI output as untrusted guidance and review it before manually applying transformations.

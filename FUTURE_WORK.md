@@ -1,55 +1,44 @@
-# Future Work: CyberSLM-Assisted CyberChef
+# Future work
 
-## Product goal
+## End goal
 
-Build a strong local CyberSLM that can analyze cybersecurity and cryptography inputs—plain text, encoded data, logs, binaries, documents, archives, and other files—and recommend or assemble the right CyberChef recipe automatically.
+Build a strong local CyberSLM-assisted workflow that can inspect text and files, reason about encodings, cryptography, file formats, and security artifacts, then propose a valid CyberChef recipe. The user must be able to review the evidence and approve any recipe before it is inserted or run.
 
-The desired flow is:
+## Completed foundation
 
-1. A user pastes text or drops in a file.
-2. CyberSLM inspects the input locally and identifies likely encodings, ciphers, file types, indicators, and useful next steps.
-3. It proposes a CyberChef recipe, such as `From Base64` → `Gunzip` → `Extract strings`, or `From Hex` → `XOR Brute Force`.
-4. CyberChef automatically adds the proposed operations to the recipe in the right order.
-5. The user can review, edit, accept, or reject the recipe before it is run.
-6. CyberSLM explains its confidence, evidence, and output so the workflow remains understandable and reproducible.
+- Packaged CyberChef in the Cyber Workbench macOS shell.
+- Added a local Ollama connection and model chooser.
+- Added clear running, completion, failure, and cancellation feedback.
+- Added a clean Chef workspace handoff containing real input, recipe, and output values.
+- Made the handoff visible and editable in the AI text area.
+- Grounded recommendations in CyberChef's actual operation registry.
 
-## Capabilities to add
+## Next releases
 
-- Local text and file intake, including drag-and-drop.
-- Input triage: file signatures, entropy, encoding detection, hash recognition, compression detection, and binary/string inspection.
-- Crypto-focused reasoning: Base64/hex/URL encodings, common substitution/rotation ciphers, XOR, hashes, certificates, JWTs, and layered encodings.
-- Recipe planner that maps model recommendations to CyberChef operation names and validated arguments.
-- Recipe executor that inserts operations into CyberChef instead of merely describing them.
-- Confidence scores and an explanation of each operation before execution.
-- One-click presets for common workflows: decode layers, suspicious URL analysis, IOC extraction, hash identification, JWT inspection, PowerShell decoding, and file triage.
-- Local history of inputs, proposed recipes, results, and user corrections for evaluation and improvement.
+### 1. Structured recipe proposal
 
-## Safety and quality requirements
+Ask the model for a validated schema: exact operation name, arguments, confidence, evidence, and rationale. Parse it defensively and show a recipe preview. Do not execute it yet.
 
-- Keep analysis local by default; do not send input, files, or recipes to external services.
-- Require user approval before running a generated recipe, especially expensive operations or brute force attempts.
-- Limit resource-intensive operations by file size, execution time, and worker count.
-- Preserve an auditable recipe: every automated action must produce an ordinary CyberChef recipe the user can inspect and save.
-- Evaluate the model against a curated corpus of crypto puzzles, CTF challenges, malware samples, logs, common encodings, and malformed inputs.
+### 2. Approved recipe insertion
 
-## Suggested delivery phases
+Add an explicit **Add proposed recipe to Chef** action. Validate every operation and argument against CyberChef before inserting it. Never silently replace a user's recipe.
 
-### Phase 1 — Assisted triage
+### 3. File intake and triage
 
-Add a local AI panel that summarizes pasted text or a selected file and suggests a recipe in plain language. The user manually adds operations.
+Implement the Files view and safe local file handoff. Add deterministic signals before model analysis: file signature, size, entropy, hashes, strings, archive/compression detection, and encoding checks.
 
-### Phase 2 — Recipe proposal
+### 4. Better local model capability
 
-Translate model output into a structured recipe schema. Show a visual preview with operation names, arguments, confidence, and rationale.
+The current `gemma3-4b-cyberslm-appsec` model is AppSec-oriented, not a dedicated cryptography/data-transformation solver. Evaluate candidate local models and fine-tuning data against a curated corpus of encodings, layered data, crypto puzzles, CTF inputs, logs, binaries, and malformed examples.
 
-### Phase 3 — One-click insertion
+### 5. Evaluation and history
 
-Add an integration bridge that inserts the approved structured recipe into CyberChef’s recipe pane and optionally runs it.
+Measure correct operation choice, valid arguments, recipe order, output usefulness, latency, refusal quality, and unsafe recommendations. Add opt-in local history of inputs, proposed recipes, results, and user corrections.
 
-### Phase 4 — Evaluation and refinement
+## Safety requirements
 
-Build repeatable evaluations for correct operation choice, argument accuracy, ordered multi-step recipes, output quality, latency, and unsafe recommendations.
-
-### Phase 5 — Agentic local workbench
-
-Let CyberSLM iteratively inspect outputs, propose the next step, and stop for user confirmation at defined checkpoints.
+- Keep data local by default.
+- Treat model output as a suggestion, not an authority.
+- Require user approval before adding or running AI-generated recipes.
+- Bound expensive operations, file sizes, retries, and model input length.
+- Preserve an ordinary, inspectable CyberChef recipe for every automated action.

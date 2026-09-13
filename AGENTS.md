@@ -1,12 +1,13 @@
-# CyberChef Agent Development Guide
+# Cyber Workbench Agent Development Guide
 
 ## Project
 
-CyberChef is a client-side web app and Node.js package for encoding, decoding, encryption, compression, parsing, and data analysis operations. Users build recipes from operations and run them against browser-local input.
+Cyber Workbench is a local-first macOS desktop shell around CyberChef. CyberChef remains the client-side engine for encoding, decoding, encryption, compression, parsing, and data analysis; the Workbench shell adds an optional local Ollama bridge in `desktop/` and Tauri packaging in `src-tauri/`.
 
 Core principles for changes:
 
 - Keep operations and features client-side, avoiding external services whenever possible. CyberChef is used on airgapped networks.
+- The AI bridge may only use the local Ollama loopback endpoint unless the user explicitly requests a different integration.
 - Keep latency low. Keep large libraries in separate modules so they are downloaded only by users who invoke the relevant operations.
 - Prefer Vanilla JS over jQuery or other frameworks.
 - Avoid new external package dependencies unless absolutely necessary. Reuse platform APIs and existing project utilities first.
@@ -18,6 +19,7 @@ CyberChef expects Node.js `>=24 <27` (v24 is the officially supported version; v
 - Install: `npm install`
 - Development server: `npm start`
 - Production build: `npm run build`
+- Package macOS desktop app: `npm run desktop:bundle`
 - Build Node package artifacts: `npm run node`
 - Lint: `npm run lint`
 - Spell/grammar lint for `src`: `npm run lint:grammar`
