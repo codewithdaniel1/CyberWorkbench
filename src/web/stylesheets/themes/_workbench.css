@@ -13,3 +13,184 @@
     --btn-success-font-colour: #06221d; --btn-success-bg-colour: #23d7a6; --btn-success-border-colour: #42e1b4; --btn-success-hover-font-colour: #06221d; --btn-success-hover-bg-colour: #42e1b4; --btn-success-hover-border-colour: #7bf4d2;
     --scrollbar-track: #0d1826; --scrollbar-thumb: #315166; --scrollbar-hover: #426b84; --drop-file-border-colour: #42e1b4; --table-border-colour: #315166; --popover-background: #132638; --popover-border-colour: #315166; --code-background: #163c42; --code-font-colour: #e7f1f8; --input-highlight-colour: #42e1b4; --input-border-colour: #315166;
 }
+
+/* Cyber Workbench Chef shell: retain CyberChef behavior, replace its visual chrome. */
+:root.workbench {
+    --primary-background-colour: #0b1624;
+    --secondary-background-colour: #0d1826;
+    --title-background-colour: #101f2e;
+    --primary-border-colour: #203143;
+    --secondary-border-colour: #1a3044;
+    --title-colour: #e7f1f8;
+    --op-list-operation-bg-colour: #0e2131;
+    --op-list-operation-border-colour: #203b50;
+    --rec-list-operation-bg-colour: #12383c;
+    --rec-list-operation-border-colour: #23635e;
+    --selected-operation-bg-colour: #173f53;
+    --selected-operation-border-colour: #42e1b4;
+    --arg-background: #08131f;
+}
+
+:root.workbench body {
+    background: #0b1624;
+}
+
+:root.workbench #banner {
+    display: none;
+}
+
+:root.workbench #workspace-wrapper {
+    top: 0;
+    background: #0b1624;
+}
+
+:root.workbench #operations,
+:root.workbench #recipe,
+:root.workbench #input,
+:root.workbench #output {
+    background: #0d1826;
+}
+
+:root.workbench .title {
+    height: 44px;
+    padding: 10px 14px;
+    background: #101f2e;
+    border-bottom: 1px solid #284158;
+    color: #e7f1f8;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: .025em;
+    line-height: 24px;
+}
+
+:root.workbench #operations > .title::before,
+:root.workbench #recipe > .title::before {
+    color: #42e1b4;
+    content: "WORKBENCH / ";
+    font-size: 9px;
+    letter-spacing: .12em;
+    margin-right: 7px;
+    vertical-align: 1px;
+}
+
+:root.workbench #input > .title::before,
+:root.workbench #output > .title::before {
+    color: #91a9bb;
+    content: "DATA / ";
+    font-size: 9px;
+    letter-spacing: .12em;
+    margin-right: 7px;
+    vertical-align: 1px;
+}
+
+:root.workbench #search {
+    height: 42px;
+    padding: 8px 14px;
+    background-color: #08131f;
+    border: 0;
+    border-bottom: 1px solid #203143;
+    box-shadow: none;
+    color: #d9e7f0;
+    font-size: 13px;
+}
+
+:root.workbench #search:focus {
+    box-shadow: inset 3px 0 #42e1b4;
+}
+
+:root.workbench .category-title {
+    padding: 12px 14px;
+    background: #0d1826;
+    border-bottom-color: #203143;
+    color: #a8c7d9;
+    font-size: 12px;
+    letter-spacing: .05em;
+}
+
+:root.workbench .op-list .operation {
+    margin: 5px 8px;
+    padding: 9px 11px;
+    border: 1px solid #203b50;
+    border-radius: 6px;
+    color: #c7dce8;
+    font-size: 13px;
+}
+
+:root.workbench .op-list .operation:hover {
+    background: #173348;
+    border-color: #42e1b4;
+    color: #e7f1f8;
+    filter: none;
+}
+
+:root.workbench #rec-list {
+    padding: 8px;
+}
+
+:root.workbench #rec-list .operation {
+    margin-bottom: 8px;
+    border: 1px solid #23635e;
+    border-left: 3px solid #42e1b4;
+    border-radius: 7px;
+    box-shadow: none;
+}
+
+:root.workbench .operation .op-title {
+    font-weight: 800;
+}
+
+:root.workbench .gutter {
+    background-color: #203143;
+}
+
+:root.workbench .gutter:hover {
+    background-color: #315f79;
+}
+
+:root.workbench .pane-controls .btn {
+    border-radius: 5px;
+}
+
+:root.workbench .pane-controls .btn:hover {
+    border-color: #42e1b4;
+}
+
+:root.workbench #input-wrapper,
+:root.workbench #output-wrapper {
+    background: #08131f;
+}
+
+:root.workbench .cm-editor .cm-content {
+    color: #d9e7f0;
+    font-size: 14px;
+}
+
+:root.workbench .cm-editor.cm-focused {
+    outline: 1px solid #315f79;
+    outline-offset: -1px;
+}
+
+:root.workbench .cm-status-bar {
+    background: #101f2e;
+    border-top-color: #203143;
+    color: #91a9bb;
+}
+
+:root.workbench #controls {
+    padding: 9px 12px;
+    background: #101f2e;
+    border-top-color: #284158;
+}
+
+:root.workbench #controls .btn {
+    border-radius: 6px;
+}
+
+:root.workbench #bake {
+    min-width: 112px;
+    box-shadow: 0 0 0 1px rgba(66, 225, 180, .18);
+}
+
+:root.workbench #step {
+    color: #b9d3e6;
+}
