@@ -123,16 +123,24 @@
     filter: none;
 }
 
-:root.workbench #rec-list {
-    padding: 8px;
-}
-
 :root.workbench #rec-list .operation {
     margin-bottom: 8px;
     border: 1px solid #23635e;
     border-left: 3px solid #42e1b4;
     border-radius: 7px;
     box-shadow: none;
+}
+
+:root.workbench .sortable-fallback {
+    border-color: #42e1b4 !important;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, .32) !important;
+    opacity: .92;
+    pointer-events: none;
+}
+
+:root.workbench .sortable-ghost {
+    border: 1px dashed #42e1b4 !important;
+    opacity: .35;
 }
 
 :root.workbench .operation .op-title {

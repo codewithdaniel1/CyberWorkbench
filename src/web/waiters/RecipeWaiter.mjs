@@ -45,6 +45,9 @@ class RecipeWaiter {
             sort: true,
             animation: 0,
             delay: 0,
+            forceFallback: true,
+            fallbackOnBody: true,
+            fallbackTolerance: 3,
             filter: ".arg",
             preventOnFilter: false,
             setData: function(dataTransfer, dragEl) {
@@ -104,6 +107,9 @@ class RecipeWaiter {
                 put: false,
             },
             sort: false,
+            forceFallback: true,
+            fallbackOnBody: true,
+            fallbackTolerance: 3,
             setData: function(dataTransfer, dragEl) {
                 dataTransfer.setData("Text", dragEl.textContent);
             },
