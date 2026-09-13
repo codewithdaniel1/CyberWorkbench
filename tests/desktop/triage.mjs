@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import {
     chefTextInput,
     detectFileType,
     deterministicRecipe,
+    deterministicRecipeChain,
     entropy,
     safeTextPreview,
 } from "../../desktop/triage.mjs";
@@ -32,4 +34,9 @@ assert.equal(chefTextInput(Uint8Array.from([65, 0, 66])), "");
 assert.equal(chefTextInput(encoder.encode("hello")), "hello");
 assert.equal(entropy(Uint8Array.from([0, 0, 0, 0])), 0);
 
-console.log(`Cyber Workbench triage evaluation passed (${cases.length} recipe cases, 9 file-safety checks).`);
+const layeredInput = (await readFile(new URL("../../examples/triage/test4file", import.meta.url), "utf8")).trim();
+const layered = deterministicRecipeChain(layeredInput);
+assert.deepEqual(layered.steps.map((step) => step.op), ["From Base64", "From Hex"]);
+assert.equal(layered.output, "Cyber Workbench\n");
+
+console.log(`Cyber Workbench triage evaluation passed (${cases.length} recipe cases, 9 file-safety checks, 1 layered chain).`);

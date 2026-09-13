@@ -1,4 +1,4 @@
-import { chefTextInput, detectFileType, deterministicRecipe, entropy, hexPreview, safeTextPreview } from "./triage.mjs";
+import { chefTextInput, detectFileType, deterministicRecipeChain, entropy, hexPreview, safeTextPreview } from "./triage.mjs";
 
 const pages = {
     chef: ["Chef", "Browser-local data transformation"],
@@ -103,8 +103,9 @@ async function triageFile(file) {
 }
 
 function fileTriagePrompt(data) {
-    const candidate = deterministicRecipe(data.chefInput);
-    return `LOCAL FILE TRIAGE REPORT\n\nNAME: ${data.name}\nSIZE: ${data.size}\nDECLARED MIME: ${data.mime}\nDETECTED TYPE: ${data.type}\nSHA-256: ${data.sha256}\nMAGIC BYTES: ${data.magic}\nSAMPLE ENTROPY: ${data.entropy} bits/byte\nDETERMINISTIC CANDIDATE: ${candidate ? `${candidate.op} (${candidate.confidence}) — ${candidate.why}` : "None"}\n\nSAFE TEXT PREVIEW:\n---\n${data.preview}\n---`;
+    const candidate = deterministicRecipeChain(data.chefInput);
+    const recipe = candidate.steps.length ? `${candidate.steps.map((step) => step.op).join(" → ")} (high) — ${candidate.steps.map((step) => step.why).join(" ")}` : "None";
+    return `LOCAL FILE TRIAGE REPORT\n\nNAME: ${data.name}\nSIZE: ${data.size}\nDECLARED MIME: ${data.mime}\nDETECTED TYPE: ${data.type}\nSHA-256: ${data.sha256}\nMAGIC BYTES: ${data.magic}\nSAMPLE ENTROPY: ${data.entropy} bits/byte\nDETERMINISTIC CANDIDATE: ${recipe}\n\nSAFE TEXT PREVIEW:\n---\n${data.preview}\n---`;
 }
 
 function availableOperations() {
@@ -169,15 +170,16 @@ function hideProposal() {
 
 function renderProposal(modelResult) {
     const validated = validateProposal(modelResult.recipe);
-    const fallback = deterministicRecipe(fileTriage?.chefInput || workspace?.input);
-    const local = fallback ? validateProposal([{
-        operation: fallback.op,
-        args: fallback.args,
-        confidence: fallback.confidence,
-        why: fallback.why
-    }]) : { steps: [], rejected: [] };
+    const fallback = deterministicRecipeChain(fileTriage?.chefInput || workspace?.input);
+    const local = validateProposal(fallback.steps.map((step) => ({
+        operation: step.op,
+        args: step.args,
+        confidence: step.confidence,
+        why: step.why
+    })));
     const fileEvidenceOverridesModel = Boolean(fileTriage && local.steps.length && validated.steps.some((step) => step.op !== local.steps[0].op));
-    const steps = fileEvidenceOverridesModel || !validated.steps.length ? local.steps : validated.steps;
+    const localChainExtendsModel = Boolean(fileTriage && local.steps.length > validated.steps.length && validated.steps.every((step, index) => step.op === local.steps[index]?.op));
+    const steps = fileEvidenceOverridesModel || localChainExtendsModel || !validated.steps.length ? local.steps : validated.steps;
     const rejected = [
         ...validated.rejected,
         ...local.rejected,
@@ -185,7 +187,7 @@ function renderProposal(modelResult) {
     ];
     proposedSteps = steps;
     proposal.hidden = false;
-    proposalSummary.textContent = steps.length ? `${steps.length} ${fileEvidenceOverridesModel || !validated.steps.length ? "deterministic" : "validated"} step${steps.length === 1 ? "" : "s"} ready for your review.` : "No validated recipe steps were proposed.";
+    proposalSummary.textContent = steps.length ? `${steps.length} ${fileEvidenceOverridesModel || localChainExtendsModel || !validated.steps.length ? "deterministic" : "validated"} step${steps.length === 1 ? "" : "s"} ready for your review.` : "No validated recipe steps were proposed.";
     proposalSteps.replaceChildren();
     for (const step of steps) {
         const item = document.createElement("li");

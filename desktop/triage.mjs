@@ -71,3 +71,35 @@ export function deterministicRecipe(input) {
     };
     return null;
 }
+
+function applyDeterministicStep(input, operation) {
+    if (operation === "From Base64") return atob(String(input).replace(/\s/g, ""));
+    if (operation === "From Hex") {
+        const compact = String(input).replace(/\s/g, "");
+        return String.fromCharCode(...compact.match(/.{2}/g).map((pair) => Number.parseInt(pair, 16)));
+    }
+    if (operation === "URL Decode") return decodeURIComponent(String(input));
+    return input;
+}
+
+/**
+ * Return a small, evidence-backed chain and its locally decoded text.
+ * The cap prevents cyclic or speculative multi-layer suggestions.
+ */
+export function deterministicRecipeChain(input, limit = 3) {
+    const steps = [];
+    let output = String(input || "");
+    for (let index = 0; index < limit; index++) {
+        const step = deterministicRecipe(output);
+        if (!step) break;
+        try {
+            const next = applyDeterministicStep(output, step.op);
+            if (next === output) break;
+            steps.push(step);
+            output = next;
+        } catch {
+            break;
+        }
+    }
+    return { steps, output };
+}

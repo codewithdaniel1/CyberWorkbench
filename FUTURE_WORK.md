@@ -29,7 +29,7 @@ Implement the Files view and safe local file handoff. Add deterministic signals 
 
 ### 4. Evaluation and regression corpus — current priority
 
-Maintain a local corpus of known inputs and expected CyberChef operations. Run deterministic recipe and file-safety checks in CI before releasing changes. Expand the corpus with layered encodings, compression/archive samples, logs, binaries, malformed data, and expected abstentions.
+Maintain a local corpus of known inputs and expected CyberChef operations. Run deterministic recipe and file-safety checks in CI before releasing changes. The initial corpus includes a Base64 → Hex layered case; expand it with compression/archive samples, logs, binaries, malformed data, and expected abstentions.
 
 ### 5. Better local model capability
 
