@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Cyber Workbench</title>
+        <link rel="stylesheet" href="app.css" />
+    </head>
+    <body>
+        <main class="workbench">
+            <aside class="sidebar" aria-label="Cyber Workbench sections">
+                <div class="brand"><span class="brand-mark">CW</span><span>WORKBENCH</span></div>
+                <nav>
+                    <button class="nav-item active" data-page="chef">⌘ <span>Chef</span></button>
+                    <button class="nav-item" data-page="ai">✦ <span>AI</span></button>
+                    <button class="nav-item" data-page="files">□ <span>Files</span></button>
+                    <button class="nav-item" data-page="iocs">◎ <span>IOCs</span></button>
+                    <button class="nav-item" data-page="history">◷ <span>History</span></button>
+                </nav>
+                <div class="sidebar-footer"><span class="status-dot"></span> LOCAL FIRST<br><small>v0.1</small></div>
+            </aside>
+            <section class="content">
+                <header><div><h1 id="page-title">Chef</h1><p id="page-subtitle">Browser-local data transformation</p></div><div class="local-pill"><span class="status-dot"></span> Local</div></header>
+                <section class="page active" id="chef-page"><div class="chef-toolbar"><span>CYBERCHEF ENGINE</span><button id="send-output" type="button">Analyze output with CyberSLM →</button></div><iframe id="chef-frame" title="CyberChef" src="chef/index.html"></iframe></section>
+                <section class="page" id="ai-page"><span class="eyebrow">CYBERSLM BRIDGE</span><h2>Analyze locally with Ollama</h2><p>Your prompts stay on this machine. Start Ollama, then select a local model.</p><div class="ai-controls"><label>Model <select id="model-select"><option>Checking Ollama…</option></select></label><button id="refresh-models" type="button">Refresh models</button><span id="ollama-status"></span></div><textarea id="ai-prompt" placeholder="Paste output or describe what you want to investigate…"></textarea><div class="ai-actions"><button class="primary" id="ask-ai" type="button">Analyze locally</button></div><pre id="ai-response">Ready when Ollama is running.</pre></section>
+                <section class="page placeholder" id="files-page"><span class="eyebrow">PLANNED</span><h2>Files</h2><p>Local file collection and handoff into recipes will live here.</p></section>
+                <section class="page placeholder" id="iocs-page"><span class="eyebrow">PLANNED</span><h2>IOCs</h2><p>Extract and organize indicators without sending them off-device.</p></section>
+                <section class="page placeholder" id="history-page"><span class="eyebrow">PLANNED</span><h2>History</h2><p>Recent recipes and analysis sessions will live here.</p></section>
+            </section>
+        </main>
+        <script src="app.js"></script>
+    </body>
+</html>
