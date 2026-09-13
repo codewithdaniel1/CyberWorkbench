@@ -9,8 +9,9 @@ Cyber Workbench is a macOS desktop workbench built around [CyberChef](https://gi
 - **Chef-to-AI handoff** — **Analyze Chef workspace with CyberSLM** opens the AI view with a readable pre-filled snapshot of the original input, current recipe, and current output.
 - **Grounded operation suggestions** — the AI receives CyberChef's live operation list and is instructed to recommend exact operation names only.
 - **Analysis feedback** — a live elapsed-time indicator and Cancel button make long local model requests visible and stoppable.
+- **Local file triage** — inspect a local file's signature, size, hash, entropy, and safe text preview before asking Ollama. Text inputs can be loaded into Chef only after you approve a proposed recipe.
 
-The **Files**, **IOCs**, and **History** navigation items are placeholders; they are not implemented yet.
+The **IOCs** and **History** navigation items are placeholders; the **Files** view provides initial local triage.
 
 ## Quick start
 
@@ -60,6 +61,7 @@ The AI handoff contains only the current local workspace. Requests are sent only
 | `npm run desktop:prepare` | Prepare the desktop web assets. |
 | `npm run desktop:bundle` | Build the bundled macOS application. |
 | `npm run lint` | Lint the source. |
+| `npm run test:desktop` | Run local file-triage regression evaluations. |
 | `npm test` | Run CyberChef's Node and operation tests. |
 | `npm start` | Run the upstream web development server. |
 
