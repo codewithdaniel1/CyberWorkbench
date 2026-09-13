@@ -5,8 +5,8 @@ const pages = {
     iocs: ["IOCs", "Indicators of compromise"],
     history: ["History", "Local session history"]
 };
-const prompt = document.querySelector("#ai-prompt"), response = document.querySelector("#ai-response"), modelSelect = document.querySelector("#model-select"), status = document.querySelector("#ollama-status"), askButton = document.querySelector("#ask-ai"), cancelButton = document.querySelector("#cancel-ai"), analysisStatus = document.querySelector("#analysis-status"), workspaceSummary = document.querySelector("#workspace-summary"), chefFrame = document.querySelector("#chef-frame"), proposal = document.querySelector("#proposal"), proposalSummary = document.querySelector("#proposal-summary"), proposalSteps = document.querySelector("#proposal-steps"), proposalNote = document.querySelector("#proposal-note"), applyProposal = document.querySelector("#apply-proposal"), reviewChef = document.querySelector("#review-chef");
-let controller, timer, startedAt, workspace, proposedSteps = [];
+const prompt = document.querySelector("#ai-prompt"), response = document.querySelector("#ai-response"), modelSelect = document.querySelector("#model-select"), status = document.querySelector("#ollama-status"), askButton = document.querySelector("#ask-ai"), cancelButton = document.querySelector("#cancel-ai"), analysisStatus = document.querySelector("#analysis-status"), workspaceSummary = document.querySelector("#workspace-summary"), chefFrame = document.querySelector("#chef-frame"), proposal = document.querySelector("#proposal"), proposalSummary = document.querySelector("#proposal-summary"), proposalSteps = document.querySelector("#proposal-steps"), proposalNote = document.querySelector("#proposal-note"), applyProposal = document.querySelector("#apply-proposal"), reviewChef = document.querySelector("#review-chef"), fileInput = document.querySelector("#file-input"), fileDrop = document.querySelector("#file-drop"), fileReport = document.querySelector("#file-report"), fileName = document.querySelector("#file-name"), fileFacts = document.querySelector("#file-facts"), filePreview = document.querySelector("#file-preview"), analyzeFile = document.querySelector("#analyze-file");
+let controller, timer, startedAt, workspace, fileTriage, proposedSteps = [];
 
 function openPage(page) {
     document.querySelectorAll(".nav-item, .page").forEach((el) => el.classList.remove("active"));
@@ -57,6 +57,118 @@ function clip(value, limit = 24000) {
 
 function workspacePreview(data) {
     return `CYBERCHEF WORKSPACE\n\nORIGINAL INPUT:\n${clip(data.input)}\n\nCURRENT RECIPE:\n${data.recipe.length ? JSON.stringify(data.recipe, null, 2) : "No operations"}\n\nCURRENT OUTPUT:\n${clip(data.output)}`;
+}
+
+function formatBytes(bytes) {
+    if (!bytes) return "0 B";
+    const units = ["B", "KB", "MB", "GB"];
+    const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    return `${(bytes / (1024 ** index)).toFixed(index ? 1 : 0)} ${units[index]}`;
+}
+
+function hexPreview(bytes, limit = 32) {
+    return Array.from(bytes.slice(0, limit), (value) => value.toString(16).padStart(2, "0")).join(" ");
+}
+
+function detectFileType(bytes) {
+    const starts = (...values) => values.every((value, index) => bytes[index] === value);
+    if (starts(0x25, 0x50, 0x44, 0x46)) return "PDF document";
+    if (starts(0x50, 0x4b, 0x03, 0x04)) return "ZIP archive (or Office document)";
+    if (starts(0x1f, 0x8b)) return "Gzip stream";
+    if (starts(0x89, 0x50, 0x4e, 0x47)) return "PNG image";
+    if (starts(0xff, 0xd8, 0xff)) return "JPEG image";
+    if (starts(0x7f, 0x45, 0x4c, 0x46)) return "ELF executable";
+    if (starts(0x4d, 0x5a)) return "Windows PE executable";
+    if (starts(0x52, 0x61, 0x72, 0x21)) return "RAR archive";
+    const printable = Array.from(bytes, (byte) => byte === 9 || byte === 10 || byte === 13 || (byte >= 32 && byte <= 126)).filter(Boolean).length;
+    if (bytes.length && printable / bytes.length > .9) return "Text data";
+    return "Unknown / inspect with CyberChef";
+}
+
+function entropy(bytes) {
+    if (!bytes.length) return 0;
+    const counts = new Uint32Array(256);
+    for (const byte of bytes) counts[byte]++;
+    return -counts.reduce((total, count) => {
+        if (!count) return total;
+        const probability = count / bytes.length;
+        return total + probability * Math.log2(probability);
+    }, 0);
+}
+
+function safeTextPreview(bytes) {
+    if (bytes.includes(0)) return "Binary content detected; text preview omitted.";
+    const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes.slice(0, 8192));
+    return text ? text.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "�") : "No printable text preview.";
+}
+
+function chefTextInput(bytes) {
+    if (bytes.includes(0)) return "";
+    return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+function addFact(label, value) {
+    const term = document.createElement("dt"), detail = document.createElement("dd");
+    term.textContent = label;
+    detail.textContent = value;
+    fileFacts.append(term, detail);
+}
+
+async function triageFile(file) {
+    const previewBytes = new Uint8Array(await file.slice(0, 65536).arrayBuffer());
+    const canHash = file.size <= 104857600;
+    const hash = canHash ? Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer())), (byte) => byte.toString(16).padStart(2, "0")).join("") : "Skipped for files over 100 MB";
+    fileTriage = {
+        name: file.name,
+        size: formatBytes(file.size),
+        mime: file.type || "Not supplied",
+        type: detectFileType(previewBytes),
+        sha256: hash,
+        magic: hexPreview(previewBytes),
+        entropy: entropy(previewBytes).toFixed(2),
+        preview: safeTextPreview(previewBytes),
+        chefInput: chefTextInput(previewBytes)
+    };
+    fileName.textContent = file.name;
+    fileFacts.replaceChildren();
+    addFact("Size", fileTriage.size);
+    addFact("Declared type", fileTriage.mime);
+    addFact("Detected type", fileTriage.type);
+    addFact("SHA-256", fileTriage.sha256);
+    addFact("Magic bytes", fileTriage.magic || "Empty file");
+    addFact("Sample entropy", `${fileTriage.entropy} bits/byte`);
+    filePreview.textContent = fileTriage.preview;
+    fileReport.hidden = false;
+}
+
+function fileTriagePrompt(data) {
+    const candidate = deterministicRecipe(data.chefInput);
+    return `LOCAL FILE TRIAGE REPORT\n\nNAME: ${data.name}\nSIZE: ${data.size}\nDECLARED MIME: ${data.mime}\nDETECTED TYPE: ${data.type}\nSHA-256: ${data.sha256}\nMAGIC BYTES: ${data.magic}\nSAMPLE ENTROPY: ${data.entropy} bits/byte\nDETERMINISTIC CANDIDATE: ${candidate ? `${candidate.op} (${candidate.confidence}) — ${candidate.why}` : "None"}\n\nSAFE TEXT PREVIEW:\n---\n${data.preview}\n---`;
+}
+
+function deterministicRecipe(input) {
+    const text = String(input || "").trim();
+    if (!text) return null;
+    if (/%[0-9a-f]{2}/i.test(text)) return {
+        op: "URL Decode",
+        args: [],
+        confidence: "high",
+        why: "Percent-encoded byte sequences are present in the text."
+    };
+    if (/^(?:[0-9a-f]{2}\s*)+$/i.test(text)) return {
+        op: "From Hex",
+        args: [],
+        confidence: "high",
+        why: "The text is a sequence of hexadecimal byte pairs."
+    };
+    const compact = text.replace(/\s/g, "");
+    if (/^[A-Za-z0-9+/]*={0,2}$/.test(compact) && compact.length >= 4 && compact.length % 4 === 0) return {
+        op: "From Base64",
+        args: [],
+        confidence: "high",
+        why: "The text uses the Base64 alphabet, has valid padding, and has a length divisible by four."
+    };
+    return null;
 }
 
 function availableOperations() {
@@ -120,10 +232,24 @@ function hideProposal() {
 }
 
 function renderProposal(modelResult) {
-    const { steps, rejected } = validateProposal(modelResult.recipe);
+    const validated = validateProposal(modelResult.recipe);
+    const fallback = deterministicRecipe(fileTriage?.chefInput || workspace?.input);
+    const local = fallback ? validateProposal([{
+        operation: fallback.op,
+        args: fallback.args,
+        confidence: fallback.confidence,
+        why: fallback.why
+    }]) : { steps: [], rejected: [] };
+    const fileEvidenceOverridesModel = Boolean(fileTriage && local.steps.length && validated.steps.some((step) => step.op !== local.steps[0].op));
+    const steps = fileEvidenceOverridesModel || !validated.steps.length ? local.steps : validated.steps;
+    const rejected = [
+        ...validated.rejected,
+        ...local.rejected,
+        ...(fileEvidenceOverridesModel ? [`The model suggested “${validated.steps[0].op}”, which conflicts with the locally verified ${local.steps[0].op} pattern.`] : [])
+    ];
     proposedSteps = steps;
     proposal.hidden = false;
-    proposalSummary.textContent = steps.length ? `${steps.length} validated step${steps.length === 1 ? "" : "s"} ready for your review.` : "No validated recipe steps were proposed.";
+    proposalSummary.textContent = steps.length ? `${steps.length} ${fileEvidenceOverridesModel || !validated.steps.length ? "deterministic" : "validated"} step${steps.length === 1 ? "" : "s"} ready for your review.` : "No validated recipe steps were proposed.";
     proposalSteps.replaceChildren();
     for (const step of steps) {
         const item = document.createElement("li");
@@ -139,7 +265,7 @@ function renderProposal(modelResult) {
         }
         proposalSteps.append(item);
     }
-    proposalNote.textContent = rejected.length ? `${rejected.join(" ")} Nothing unvalidated can be added.` : "Review required. This appends to your existing recipe and does not run it.";
+    proposalNote.textContent = rejected.length ? `${rejected.join(" ")} ${local.steps.length ? "A locally verified alternative is shown instead." : "Nothing unvalidated can be added."}` : "Review required. This appends to your existing recipe and does not run it.";
     applyProposal.disabled = !steps.length;
 }
 
@@ -150,6 +276,7 @@ function modelSummary(result) {
 document.querySelector("#refresh-models").addEventListener("click", loadModels);
 prompt.addEventListener("input", () => {
     workspace = null;
+    fileTriage = null;
     workspaceSummary.textContent = "Using pasted data.";
     hideProposal();
 });
@@ -199,16 +326,45 @@ applyProposal.addEventListener("click", () => {
         return;
     }
     const existing = app.getRecipeConfig();
+    const loadedFileText = Boolean(fileTriage?.chefInput);
+    if (loadedFileText) app.manager.input.setInput(fileTriage.chefInput);
     app.setRecipeConfig([...existing, ...rechecked.steps.map(({ op, args }) => ({ op, args }))]);
     const count = rechecked.steps.length;
-    proposalNote.textContent = `${count} step${count === 1 ? "" : "s"} added to Chef. The workspace above is the pre-change snapshot; review the recipe, then Bake when ready.`;
-    workspaceSummary.textContent = "Recipe updated in Chef. This attached workspace is a snapshot from before the proposed steps were added.";
+    proposalNote.textContent = `${count} step${count === 1 ? "" : "s"} added to Chef${loadedFileText ? " with the file text loaded into Input" : ""}. The workspace above is the pre-change snapshot; review the recipe, then Bake when ready.`;
+    workspaceSummary.textContent = loadedFileText ? "Recipe updated in Chef and the local file text is now loaded in Input." : "Recipe updated in Chef. This attached workspace is a snapshot from before the proposed steps were added.";
     applyProposal.disabled = true;
     applyProposal.textContent = "Steps added";
     reviewChef.hidden = false;
 });
 
 reviewChef.addEventListener("click", () => openPage("chef"));
+
+fileInput.addEventListener("change", () => {
+    if (fileInput.files[0]) triageFile(fileInput.files[0]);
+});
+
+fileDrop.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    fileDrop.classList.add("dropping");
+});
+
+fileDrop.addEventListener("dragleave", () => fileDrop.classList.remove("dropping"));
+fileDrop.addEventListener("drop", (event) => {
+    event.preventDefault();
+    fileDrop.classList.remove("dropping");
+    if (event.dataTransfer.files[0]) triageFile(event.dataTransfer.files[0]);
+});
+
+analyzeFile.addEventListener("click", () => {
+    if (!fileTriage) return;
+    workspace = null;
+    prompt.value = fileTriagePrompt(fileTriage);
+    workspaceSummary.textContent = `Local report attached for ${fileTriage.name}.`;
+    hideProposal();
+    response.textContent = "";
+    analysisStatus.textContent = "";
+    openPage("ai");
+});
 
 document.querySelector("#send-output").addEventListener("click", () => {
     try {
