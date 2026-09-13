@@ -39,10 +39,10 @@
     "node >= 24"
   ],
   "devDependencies": {
-    "@babel/eslint-parser": "^8.0.1",
+    "@babel/eslint-parser": "^8.0.5",
     "@babel/plugin-transform-runtime": "^8.0.1",
-    "@babel/preset-env": "^8.0.2",
-    "@babel/runtime": "^8.0.0",
+    "@babel/preset-env": "^8.0.5",
+    "@babel/runtime": "^8.0.5",
     "@codemirror/commands": "^6.11.0",
     "@codemirror/language": "^6.12.4",
     "@codemirror/search": "^6.7.2",
@@ -50,7 +50,7 @@
     "@codemirror/view": "^6.43.11",
     "@puppeteer/browsers": "3.2.2",
     "@tauri-apps/cli": "^2.11.4",
-    "autoprefixer": "^10.5.5",
+    "autoprefixer": "^10.5.6",
     "babel-loader": "^10.1.1",
     "babel-plugin-polyfill-corejs3": "^1.0.0",
     "base64-loader": "^1.0.0",
@@ -90,7 +90,7 @@
     "sitemap": "^9.0.1",
     "terser": "^5.51.2",
     "webpack": "^5.110.3",
-    "webpack-bundle-analyzer": "^5.3.2",
+    "webpack-bundle-analyzer": "^5.3.3",
     "webpack-dev-server": "^5.2.6",
     "webpack-node-externals": "^3.0.0",
     "worker-loader": "^3.0.8"
