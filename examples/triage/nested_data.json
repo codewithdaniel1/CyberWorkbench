@@ -1,9 +1,0 @@
-{
-  "case": "demo-001",
-  "source": "local-triage-example",
-  "payload": {
-    "encoding": "base64",
-    "data": "d2hhdHMgdXA=",
-    "notes": ["synthetic", "safe to test"]
-  }
-}

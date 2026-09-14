@@ -5,11 +5,13 @@ Cyber Workbench is a macOS desktop workbench built around [CyberChef](https://gi
 ## What works today
 
 - **Chef** — the full CyberChef operation, recipe, input, and output workspace.
-- **Local AI analysis** — connect to Ollama at `http://127.0.0.1:11434`; no cloud endpoint is used.
+- **Local AI analysis** — connect to an already-installed Ollama model at `http://127.0.0.1:11434`; no cloud endpoint or model download is used by the app.
 - **Chef-to-AI handoff** — **Analyze Chef workspace with CyberSLM** opens the AI view with a readable pre-filled snapshot of the original input, current recipe, and current output.
 - **Grounded operation suggestions** — the AI receives CyberChef's live operation list and is instructed to recommend exact operation names only.
-- **Analysis feedback** — a live elapsed-time indicator and Cancel button make long local model requests visible and stoppable.
+- **Automatic local solve loop** — **Analyze locally** verifies likely layers and dry-runs them in CyberChef's temporary worker, then always asks the selected local Ollama model for a clearly labeled review. For uncertain steps it can also ask that model for one tightly constrained next choice, then validates it before continuing.
+- **Analysis feedback** — progress, time, and Cancel make long local analysis visible and stoppable. Limits cap a run at 8 steps, 30 seconds, 10 seconds per operation, and 1 MB of temporary output.
 - **Local file triage** — inspect a local file's signature, size, hash, entropy, and safe text preview before asking Ollama. Text inputs can be loaded into Chef only after you approve a proposed recipe.
+- **Local model scorecard** — run 15 bundled synthetic cases against the selected Ollama model and measure recognition, JSON reliability, exact recipe order, safe abstention, and latency. It covers common local triage families: Base64, hex, URL and layered encodings, gzip, JWT, ROT13, XOR, AES metadata, SHA-256 digests, and PGP armor. This is deliberately model-specific, so switching models changes the result.
 
 The **IOCs** and **History** navigation items are placeholders; the **Files** view provides initial local triage.
 
@@ -46,10 +48,10 @@ For the web-only CyberChef development server, run `npm start`.
 ## Use local AI analysis
 
 1. Install and start [Ollama](https://ollama.com/).
-2. Pull or create a local model.
+2. Use any model already installed in Ollama; Cyber Workbench does not download models.
 3. Open **AI** in Cyber Workbench and select the model.
 4. Either paste data into the text box, or build a recipe in **Chef** and choose **Analyze Chef workspace with CyberSLM**.
-5. Review the model's verdict and recommended recipe. Suggestions are not automatically applied.
+5. Review the temporary trace and proposed recipe. The solver never changes Chef until you explicitly choose **Add validated steps to Chef**.
 
 The AI handoff contains only the current local workspace. Requests are sent only to Ollama on loopback (`127.0.0.1`).
 

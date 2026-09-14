@@ -27,13 +27,13 @@ Add an explicit **Add proposed recipe to Chef** action. Validate every operation
 
 Implement the Files view and safe local file handoff. Add deterministic signals before model analysis: file signature, size, entropy, hashes, strings, archive/compression detection, and encoding checks.
 
-### 4. Evaluation and regression corpus — current priority
+### 4. Evaluation and regression corpus — temporary solver scorecard completed
 
-Maintain a local corpus of known inputs and expected CyberChef operations. Run deterministic recipe and file-safety checks in CI before releasing changes. The initial corpus includes a Base64 → Hex layered case; expand it with compression/archive samples, logs, binaries, malformed data, and expected abstentions.
+Maintain a local corpus of known inputs, expected CyberChef operations, and expected final output. Run deterministic recipe, file-safety, temporary-solver, and selected-model checks before releasing changes. The AI tab's scorecard sends 15 bundled encoding and common-crypto triage cases (including ROT13, XOR, AES metadata, SHA-256, PGP, JWT, and safe abstention) to the selected local Ollama model and reports recognition, exact recipe order, JSON reliability, and latency; a separate solver regression check verifies temporary execution. Do not confuse a solver-regression score with a raw model-planning score.
 
-### 5. Better local model capability
+### 5. Better local model capability (without requiring downloads)
 
-The current `gemma3-4b-cyberslm-appsec` model is AppSec-oriented, not a dedicated cryptography/data-transformation solver. Evaluate candidate local models and fine-tuning data against a curated corpus of encodings, layered data, crypto puzzles, CTF inputs, logs, binaries, and malformed examples.
+The current models are useful as constrained planners, not trusted arbitrary transformation engines. Improve the local operation router, layer detector, and curated evaluation corpus around the installed models first. If the project later permits training, evaluate a specialized adapter or fine-tune against encodings, layered data, crypto puzzles, CTF inputs, logs, binaries, and malformed examples.
 
 ### 6. Local history
 

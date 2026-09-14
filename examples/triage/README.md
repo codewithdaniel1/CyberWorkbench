@@ -1,15 +1,13 @@
 # Local triage examples
 
-These are harmless synthetic files for testing Cyber Workbench's local Files view and the AI recipe proposal flow.
+These are five newly generated, harmless synthetic files for testing Cyber Workbench's local Files view and the AI recipe proposal flow. They replace the previous corpus.
 
 | File | Useful test |
 | --- | --- |
-| `test1file` | Detect and propose `From Base64`. |
-| `test2file` | Detect and propose `URL Decode`. |
-| `test3 file` | Detect and propose `From Hex`. |
-| `test4file` | Two layers: `From Base64` → `From Hex` → `Cyber Workbench`. |
-| `nested_data.json` | JSON/text file metadata, preview, and strings. |
-| `sample_access.log` | Text/log inspection and regular-expression suggestions. |
-| `tiny_image.svg` | Safe XML/SVG text preview. |
+| `test1file` | Three layers: `From Base64` → `URL Decode` → `From Hex` → `signal: cobalt-iguana-731`. |
+| `test2file` | `From Base64` → `Gunzip` → `archive-note: quartz-badger-902`. |
+| `test3file` | Two URL-decoding passes, then `From Hex` → `packet: moss-otter-46`. |
+| `test4file` | A newly generated synthetic JWT-like token; assess whether `JWT Decode` is justified. |
+| `test5file` | Ordinary local text; the safe expected recipe is empty. |
 
 None of these files contain malware, credentials, or real indicators of compromise.
