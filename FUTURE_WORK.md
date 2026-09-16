@@ -31,11 +31,23 @@ Implement the Files view and safe local file handoff. Add deterministic signals 
 
 Maintain a local corpus of known inputs, expected CyberChef operations, and expected final output. Run deterministic recipe, file-safety, temporary-solver, and selected-model checks before releasing changes. The AI tab's scorecard sends 15 bundled encoding and common-crypto triage cases (including ROT13, XOR, AES metadata, SHA-256, PGP, JWT, and safe abstention) to the selected local Ollama model and reports recognition, exact recipe order, JSON reliability, and latency; a separate solver regression check verifies temporary execution. Do not confuse a solver-regression score with a raw model-planning score.
 
-### 5. Better local model capability (without requiring downloads)
+### 5. CyberWorkbench Harness — initial bounded runtime complete
+
+Cyber Workbench now uses a purpose-built local harness around CyberChef rather than a general coding-agent harness as the application's core runtime. The initial harness combines deterministic format and layer detection, a tightly constrained local-model planning call only when needed, temporary CyberChef execution, and validation against CyberChef's real operation and argument schemas.
+
+The harness streams model output and allows active reasoning to continue. It stops a silent response after a fixed inactivity window, bounds generated tokens, temporary output size, and proposed steps, and retains a long emergency safety ceiling. The scorecard offers a short five-case Quick run and an optional 15-case Full run. Stalled calls are recorded as failed cases instead of waiting indefinitely, Cancel remains available, and the user sees an evidence-backed trace for each proposed operation. The temporary solve loop also stops on repeated or unchanged output. Expand the harness later with more deterministic detectors and validated argument schemas.
+
+### 6. CyberChef RAG — local cryptography and operation knowledge
+
+Build a versioned, local-only CyberChef RAG shared by every installed Ollama model. It should retrieve a small set of relevant knowledge cards rather than paste a large document into every prompt. The first corpus should include exact CyberChef operation names and parameter rules, encoding and file-format indicators, common operation chains, cryptography prerequisites, known false-positive patterns, and safe-abstention rules.
+
+Examples of essential constraints: AES requires validated mode, key, IV, and ciphertext; hashes are one-way; PGP requires the appropriate private key or passphrase; JWT decoding does not verify a JWT. The RAG should improve grounded recipe suggestions, but CyberChef validation and temporary execution remain the authority.
+
+### 7. Better local model capability (without requiring downloads)
 
 The current models are useful as constrained planners, not trusted arbitrary transformation engines. Improve the local operation router, layer detector, and curated evaluation corpus around the installed models first. If the project later permits training, evaluate a specialized adapter or fine-tune against encodings, layered data, crypto puzzles, CTF inputs, logs, binaries, and malformed examples.
 
-### 6. Local history
+### 8. Local history
 
 Measure correct operation choice, valid arguments, recipe order, output usefulness, latency, refusal quality, and unsafe recommendations. Add opt-in local history of inputs, proposed recipes, results, and user corrections.
 

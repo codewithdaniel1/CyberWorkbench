@@ -6,6 +6,7 @@ export const evaluationCases = [
         expectedOperations: ["From Base64"],
         expectedOutput: "Cyber Workbench: ocelot-741\n",
         expectedClassification: "base64",
+        quick: true,
         rationale: "Valid Base64 may contain harmless whitespace; it should decode once."
     },
     {
@@ -33,6 +34,7 @@ export const evaluationCases = [
         expectedOperations: ["From Base64", "URL Decode", "URL Decode", "From Hex"],
         expectedOutput: "signal: juniper-manta-463\n",
         expectedClassification: "layered encoding",
+        quick: true,
         rationale: "Base64 reveals two percent-encoding layers before compact hexadecimal text."
     },
     {
@@ -51,6 +53,7 @@ export const evaluationCases = [
         expectedOperations: ["From Base64", "Gunzip"],
         expectedOutput: "archive-note: velvet-otter-205\n",
         expectedClassification: "gzip",
+        quick: true,
         rationale: "Whitespace-tolerant Base64 yields a gzip stream."
     },
     {
@@ -59,6 +62,7 @@ export const evaluationCases = [
         input: "eyJhbGciOiJub25lIiwidHlwIjoiSldUIiwia2lkIjoibG9jYWwtNzIifQ.eyJzdWIiOiJzeW50aGV0aWMtZW1iZXItd3Jlbi02MDYiLCJzY29wZSI6InJlYWQ6bG9jYWwiLCJub25jZSI6InE3bSJ9.",
         expectedOperations: ["JWT Decode"],
         expectedClassification: "jwt",
+        quick: true,
         rationale: "Three dot-separated Base64URL components form a synthetic JWT-like token."
     },
     {
@@ -111,6 +115,7 @@ export const evaluationCases = [
         input: "AES-256-CBC\nIV=00112233445566778899aabbccddeeff\nCIPHERTEXT=9f86d081884c7d659a2feaa0c55ad015",
         expectedOperations: [],
         expectedClassification: "aes",
+        quick: true,
         rationale: "Recognize AES metadata and safely abstain when no key is supplied."
     },
     {
@@ -130,6 +135,8 @@ export const evaluationCases = [
         rationale: "Recognize PGP armor and abstain when no private key or passphrase is provided."
     }
 ];
+
+export const quickEvaluationCases = evaluationCases.filter((evaluationCase) => evaluationCase.quick);
 
 export function parseModelJson(text) {
     const cleaned = String(text || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
