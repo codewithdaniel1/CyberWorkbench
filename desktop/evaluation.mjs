@@ -1,3 +1,8 @@
+/**
+ * Deterministic planner fixtures. Every scorecard case has an executable
+ * CyberChef recipe and a known final value; non-actionable inputs belong in
+ * safety/regression tests, not a recipe-planning scorecard.
+ */
 export const evaluationCases = [
     {
         id: "base64",
@@ -7,7 +12,7 @@ export const evaluationCases = [
         expectedOutput: "Cyber Workbench: ocelot-741\n",
         expectedClassification: "base64",
         quick: true,
-        rationale: "Valid Base64 may contain harmless whitespace; it should decode once."
+        rationale: "Valid Base64 may contain harmless whitespace; decode it once."
     },
     {
         id: "hex",
@@ -57,86 +62,104 @@ export const evaluationCases = [
         rationale: "Whitespace-tolerant Base64 yields a gzip stream."
     },
     {
-        id: "jwt",
-        label: "JWT-like token with metadata",
-        input: "eyJhbGciOiJub25lIiwidHlwIjoiSldUIiwia2lkIjoibG9jYWwtNzIifQ.eyJzdWIiOiJzeW50aGV0aWMtZW1iZXItd3Jlbi02MDYiLCJzY29wZSI6InJlYWQ6bG9jYWwiLCJub25jZSI6InE3bSJ9.",
-        expectedOperations: ["JWT Decode"],
-        expectedClassification: "jwt",
-        quick: true,
-        rationale: "Three dot-separated Base64URL components form a synthetic JWT-like token."
-    },
-    {
-        id: "abstain",
-        label: "Ordinary prose with code-like text",
-        input: "Operator note: route=local; ticket CAFE-741 remains open. Do not transform this sentence.",
-        expectedOperations: [],
-        expectedOutput: "Operator note: route=local; ticket CAFE-741 remains open. Do not transform this sentence.",
-        expectedClassification: "plain",
-        rationale: "Plain prose containing code-like fragments should not receive a speculative transformation."
-    },
-    {
-        id: "ambiguous",
-        label: "Ambiguous unpadded alphabet",
-        input: "cafe",
-        expectedOperations: [],
-        expectedOutput: "cafe",
-        expectedClassification: "ambiguous",
-        rationale: "A common unpadded word must not be treated as high-confidence Base64."
-    },
-    {
-        id: "malformed-url",
-        label: "Malformed percent encoding",
-        input: "record%2Gfinal%",
-        expectedOperations: [],
-        expectedOutput: "record%2Gfinal%",
-        expectedClassification: "malformed",
-        rationale: "Malformed percent escapes are insufficient evidence for a safe decode."
-    },
-    {
         id: "rot13",
         label: "ROT13 ciphertext",
         input: "Frperg abgr: yvzr-jera-804.",
         expectedOperations: ["ROT13"],
         expectedOutput: "Secret note: lime-wren-804.",
         expectedClassification: "rot13",
-        rationale: "A short synthetic ROT13 message is a common low-risk classical-cipher triage case."
-    },
-    {
-        id: "xor",
-        label: "XOR envelope with declared key",
-        input: "XOR-KEY=UTF8:orchid\nCIPHERTEXT-HEX: 2c 17 0f 01 0b 07",
-        expectedOperations: [],
-        expectedClassification: "xor",
-        rationale: "Recognize the declared XOR material, but abstain because the scorecard does not supply a validated argument schema."
-    },
-    {
-        id: "aes",
-        label: "AES-CBC envelope without key",
-        input: "AES-256-CBC\nIV=00112233445566778899aabbccddeeff\nCIPHERTEXT=9f86d081884c7d659a2feaa0c55ad015",
-        expectedOperations: [],
-        expectedClassification: "aes",
         quick: true,
-        rationale: "Recognize AES metadata and safely abstain when no key is supplied."
+        rationale: "A synthetic ROT13 message is a low-risk classical-cipher transform."
     },
     {
-        id: "hash",
-        label: "SHA-256 digest",
-        input: "SHA-256: 53f0c4a7e17da9f4e42e7d2c0894c9733a24a4a6b0d18d8e32ae559d076a84a2",
-        expectedOperations: [],
-        expectedClassification: "hash",
-        rationale: "Recognize a one-way digest and do not suggest decoding or reversing it."
+        id: "base64-hex",
+        label: "Base64 → Hex",
+        input: "NmI2NTc5M2EyMDY5NzY2ZjcyNzkyZDM3MzMzNjBh",
+        expectedOperations: ["From Base64", "From Hex"],
+        expectedOutput: "key: ivory-736\n",
+        expectedClassification: "layered encoding",
+        rationale: "The Base64 layer resolves to an even-length hexadecimal byte string."
     },
     {
-        id: "pgp",
-        label: "PGP-armored encrypted message",
-        input: "-----BEGIN PGP MESSAGE-----\nVersion: Cyber Workbench synthetic fixture\n\nhQEMA7syntheticlocalonlyAAQf\n-----END PGP MESSAGE-----",
-        expectedOperations: [],
-        expectedClassification: "pgp",
-        rationale: "Recognize PGP armor and abstain when no private key or passphrase is provided."
+        id: "url-base64",
+        label: "URL → Base64",
+        input: "YWxlcnQ6IGNvcmFsLTU5Mgo%3D",
+        expectedOperations: ["URL Decode", "From Base64"],
+        expectedOutput: "alert: coral-592\n",
+        expectedClassification: "layered encoding",
+        rationale: "A single percent escape completes valid Base64 padding."
+    },
+    {
+        id: "hex-url",
+        label: "Hex → URL",
+        input: "68747470733a2f2f6578616d706c652e696e76616c69642f613f7461673d6d6172626c652d3438380a",
+        expectedOperations: ["From Hex", "URL Decode"],
+        expectedOutput: "https://example.invalid/a?tag=marble-488\n",
+        expectedClassification: "layered encoding",
+        rationale: "Hex bytes resolve to a percent-encoded URL."
+    },
+    {
+        id: "base64-rot13",
+        label: "Base64 → ROT13",
+        input: "RnJwZXJnIGFiZ3I6IGxiaC01MTcuCg==",
+        expectedOperations: ["From Base64", "ROT13"],
+        expectedOutput: "Secret note: you-517.\n",
+        expectedClassification: "layered encoding",
+        rationale: "Base64 resolves to readable ROT13 ciphertext."
+    },
+    {
+        id: "hex-base64",
+        label: "Hex → Base64",
+        input: "62575674627a6f6763585668636e52364c5449774f516f3d",
+        expectedOperations: ["From Hex", "From Base64"],
+        expectedOutput: "memo: quartz-209\n",
+        expectedClassification: "layered encoding",
+        rationale: "Hex resolves to a correctly padded Base64 string."
+    },
+    {
+        id: "double-base64",
+        label: "Base64 → Base64",
+        input: "YkdGNVpYSTZJRzFwYm5RdE9EQXpDZz09",
+        expectedOperations: ["From Base64", "From Base64"],
+        expectedOutput: "layer: mint-803\n",
+        expectedClassification: "layered encoding",
+        rationale: "The first Base64 decode yields another valid, padded Base64 layer."
+    },
+    {
+        id: "base64-url",
+        label: "Base64 → URL",
+        input: "aHR0cHMlM0ElMkYlMkZleGFtcGxlLmludmFsaWQlMkZub3RlJTNGaWQlM0Rvbnl4LTMxNA==",
+        expectedOperations: ["From Base64", "URL Decode"],
+        expectedOutput: "https://example.invalid/note?id=onyx-314",
+        expectedClassification: "layered encoding",
+        rationale: "Base64 resolves to a percent-encoded URL."
+    },
+    {
+        id: "html-entity",
+        label: "HTML entity text",
+        input: "ticket&#x3A; amber&#x2D;617&#x0A;",
+        expectedOperations: ["From HTML Entity"],
+        expectedOutput: "ticket: amber-617\n",
+        expectedClassification: "encoded text",
+        rationale: "Numeric HTML entities are an explicit, deterministic text encoding."
     }
 ];
 
 export const quickEvaluationCases = evaluationCases.filter((evaluationCase) => evaluationCase.quick);
+
+export function validateEvaluationCases(cases = evaluationCases) {
+    for (const evaluationCase of cases) {
+        if (!Array.isArray(evaluationCase.expectedOperations) || evaluationCase.expectedOperations.length === 0) {
+            throw new Error(`Scorecard case “${evaluationCase.id}” must expect at least one CyberChef operation.`);
+        }
+        if (typeof evaluationCase.expectedOutput !== "string") {
+            throw new Error(`Scorecard case “${evaluationCase.id}” must include a concrete expected output.`);
+        }
+    }
+    return true;
+}
+
+validateEvaluationCases();
 
 export function parseModelJson(text) {
     const cleaned = String(text || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
@@ -146,9 +169,8 @@ export function parseModelJson(text) {
 export function scoreAgentRun(operations, output, evaluationCase) {
     const expected = evaluationCase.expectedOperations;
     const recipeMatch = operations.length === expected.length && operations.every((operation, index) => operation === expected[index]);
-    const safeAbstention = expected.length === 0 ? operations.length === 0 : null;
-    const outputMatch = typeof evaluationCase.expectedOutput === "string" ? output === evaluationCase.expectedOutput : null;
-    return { operations, recipeMatch, safeAbstention, classification: "", classificationMatch: null, outputMatch, passed: recipeMatch && (outputMatch !== false) };
+    const outputMatch = output === evaluationCase.expectedOutput;
+    return { operations, recipeMatch, classification: "", classificationMatch: null, outputMatch, passed: recipeMatch && outputMatch };
 }
 
 /**
@@ -160,22 +182,19 @@ export function scoreModelResponse(modelResult, evaluationCase) {
     const operations = Array.isArray(modelResult?.recipe) ? modelResult.recipe.map((step) => typeof step?.operation === "string" ? step.operation : "").filter(Boolean) : [];
     const expected = evaluationCase.expectedOperations;
     const recipeMatch = operations.length === expected.length && operations.every((operation, index) => operation === expected[index]);
-    const safeAbstention = expected.length === 0 ? operations.length === 0 : null;
     const classification = typeof modelResult?.classification === "string" ? modelResult.classification.trim().toLowerCase() : "";
     const expectedClassification = evaluationCase.expectedClassification || "";
     const classificationMatch = expectedClassification ? classification === expectedClassification : null;
-    return { operations, recipeMatch, safeAbstention, classification, classificationMatch, outputMatch: null, passed: recipeMatch && classificationMatch !== false };
+    return { operations, recipeMatch, classification, classificationMatch, outputMatch: null, passed: recipeMatch && classificationMatch !== false };
 }
 
 export function scorecardSummary(results) {
     const passed = results.filter((result) => result.score.passed).length;
     const exactRecipes = results.filter((result) => result.score.recipeMatch).length;
-    const abstentions = results.filter((result) => result.evaluationCase.expectedOperations.length === 0 && result.score.safeAbstention).length;
-    const abstentionTotal = results.filter((result) => result.evaluationCase.expectedOperations.length === 0).length;
     const outputMatches = results.filter((result) => result.score.outputMatch === true).length;
     const outputTotal = results.filter((result) => result.score.outputMatch !== null).length;
     const classifications = results.filter((result) => result.score.classificationMatch === true).length;
     const classificationTotal = results.filter((result) => typeof result.score.classificationMatch === "boolean").length;
     const latency = results.reduce((total, result) => total + result.latencyMs, 0);
-    return { passed, exactRecipes, abstentions, abstentionTotal, outputMatches, outputTotal, classifications, classificationTotal, latency, total: results.length };
+    return { passed, exactRecipes, outputMatches, outputTotal, classifications, classificationTotal, latency, total: results.length };
 }
