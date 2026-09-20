@@ -1,6 +1,7 @@
 import { chefTextInput, detectFileType, deterministicRecipeChain, entropy, hexPreview, safeTextPreview } from "./triage.mjs";
 import { evaluationCases, parseModelJson, scoreModelResponse, scorecardSummary } from "./evaluation.mjs";
 import { AGENT_LIMITS, asBytes, asText, isLikelyPlainText, isReadableTerminal, outputFacts, verifiedNextStep } from "./agent.mjs";
+import { operationArguments } from "./operationArgs.mjs";
 
 const pages = {
     chef: ["Chef", "Browser-local data transformation"],
@@ -247,7 +248,12 @@ function validateProposal(recipe) {
         } else if (args.length > config.args.length || !args.every(validArgument)) {
             rejected.push(`“${operation}” has unsupported arguments.`);
         } else {
-            steps.push({ op: operation, args, confidence: item.confidence || "low", why: item.why || "No rationale supplied." });
+            steps.push({
+                op: operation,
+                args: operationArguments(config.args, args),
+                confidence: item.confidence || "low",
+                why: item.why || "No rationale supplied."
+            });
         }
     }
     return { steps, rejected };
@@ -401,8 +407,8 @@ function directionPrompt(before, step, after, trace) {
 }
 
 function localDirection(after) {
-    if (isReadableTerminal(after)) return { decision: "solved", why: "The temporary output is readable text." };
     if (verifiedNextStep(after)) return { decision: "keep", why: "The temporary output exposes another locally verified layer." };
+    if (isReadableTerminal(after)) return { decision: "solved", why: "The temporary output is readable text with no further locally verified layer." };
     return { decision: "rollback", why: "No locally verified improvement was found." };
 }
 

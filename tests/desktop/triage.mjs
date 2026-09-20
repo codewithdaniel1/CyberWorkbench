@@ -46,4 +46,11 @@ const test3 = deterministicRecipeChain(test3Input);
 assert.deepEqual(test3.steps.map((step) => step.op), ["URL Decode", "URL Decode", "From Hex"]);
 assert.equal(test3.output, "packet: moss-otter-46\n");
 
-console.log(`Cyber Workbench triage evaluation passed (${cases.length} recipe cases, 9 file-safety checks, 2 layered chains).`);
+// A decoded layer can be readable text while still being another verified
+// encoding. The solver must continue through every verified layer.
+const fourLayerInput = "NzMlMjUyMDY5JTI1MjA2NyUyNTIwNmUlMjUyMDYxJTI1MjA2YyUyNTIwM2ElMjUyMDIwJTI1MjA2YSUyNTIwNzUlMjUyMDZlJTI1MjA2OSUyNTIwNzAlMjUyMDY1JTI1MjA3MiUyNTIwMmQlMjUyMDZkJTI1MjA2MSUyNTIwNmUlMjUyMDc0JTI1MjA2MSUyNTIwMmQlMjUyMDM0JTI1MjAzNiUyNTIwMzMlMjUyMDIxJTI1MjAwYQ==";
+const fourLayer = deterministicRecipeChain(fourLayerInput, 10);
+assert.deepEqual(fourLayer.steps.map((step) => step.op), ["From Base64", "URL Decode", "URL Decode", "From Hex"]);
+assert.equal(fourLayer.output, "signal: juniper-manta-463!\n");
+
+console.log(`Cyber Workbench triage evaluation passed (${cases.length} recipe cases, 9 file-safety checks, 3 layered chains).`);
