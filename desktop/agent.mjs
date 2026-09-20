@@ -1,6 +1,6 @@
 import { detectFileType, deterministicRecipeChain, safeTextPreview } from "./triage.mjs";
 
-export const AGENT_LIMITS = { maxSteps: 8, maxMs: 30000, operationMs: 10000, maxBytes: 1048576 };
+export const AGENT_LIMITS = { maxSteps: 10, maxTrials: 10, operationMs: 10000, maxBytes: 1048576 };
 
 export function asBytes(value) {
     // Values returned from the Chef iframe belong to a different JS realm, so
@@ -42,4 +42,19 @@ export function isReadableTerminal(value) {
     if (!bytes.length || bytes.includes(0)) return false;
     const printable = Array.from(bytes, (byte) => byte === 9 || byte === 10 || byte === 13 || (byte >= 32 && byte <= 126)).filter(Boolean).length;
     return printable / bytes.length > .95;
+}
+
+/**
+ * A conservative terminal check for ordinary prose. It avoids wasting trial
+ * operations on a normal sentence while leaving encoded-looking and cipher-
+ * looking text available for the model-guided search.
+ */
+export function isLikelyPlainText(value) {
+    const text = asText(value).trim();
+    if (!isReadableTerminal(text) || text.length < 16 || verifiedNextStep(text)) return false;
+    const words = text.toLowerCase().match(/[a-z]{2,}/g) || [];
+    const commonWords = new Set([
+        "a", "an", "and", "are", "at", "be", "but", "by", "for", "from", "here", "in", "is", "it", "local", "note", "nothing", "of", "on", "or", "plain", "text", "that", "the", "this", "to", "was", "with"
+    ]);
+    return words.filter((word) => commonWords.has(word)).length >= 3;
 }

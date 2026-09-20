@@ -1,6 +1,6 @@
 import { chefTextInput, detectFileType, deterministicRecipeChain, entropy, hexPreview, safeTextPreview } from "./triage.mjs";
 import { evaluationCases, parseModelJson, scoreModelResponse, scorecardSummary } from "./evaluation.mjs";
-import { AGENT_LIMITS, asBytes, asText, isReadableTerminal, outputFacts, verifiedNextStep } from "./agent.mjs";
+import { AGENT_LIMITS, asBytes, asText, isLikelyPlainText, isReadableTerminal, outputFacts, verifiedNextStep } from "./agent.mjs";
 
 const pages = {
     chef: ["Chef", "Browser-local data transformation"],
@@ -22,6 +22,9 @@ const HARNESS_LIMITS = Object.freeze({
 });
 const SCORECARD_CATALOG_EXTRAS = Object.freeze([
     "To Base64", "To Hex", "URL Encode", "Gzip", "JWT Decode", "XOR", "XOR Brute Force", "AES Decrypt", "SHA2", "PGP Decrypt", "Magic"
+]);
+const AGENT_CANDIDATE_NAMES = Object.freeze([
+    "From Base64", "From Hex", "URL Decode", "Gunzip", "JWT Decode", "ROT13", "From HTML Entity", "Magic"
 ]);
 let preferredModel = "", preferredModelLoaded = false;
 let evaluationController, agentController, analysisTimer, analysisStartedAt, analysisPhase = "", workspace, fileTriage, proposedSteps = [];
@@ -361,15 +364,46 @@ function temporaryBake(input, recipe, signal) {
     });
 }
 
-function agentCandidates(value) {
-    const verified = verifiedNextStep(value);
-    if (verified) return { verified, options: [verified.op] };
-    return { verified: null, options: ["From Base64", "From Hex", "URL Decode", "Gunzip", "JWT Decode", "Magic"] };
+function agentOperationCatalog(options) {
+    const operations = chefFrame.contentWindow?.app?.operations || {};
+    return options.filter((name) => operations[name]).map((name) => ({
+        name,
+        arguments: (operations[name].args || []).map(operationArgumentDescription)
+    }));
 }
 
-function agentPrompt(value, options, trace) {
+// Local models commonly preserve the operation words but alter whitespace or
+// casing. Resolve those harmless variations to the exact name exported by the
+// currently running CyberChef build. Anything else remains invalid.
+function normalizeOperationName(value) {
+    return String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+function resolveCatalogOperation(value, catalog) {
+    const requested = normalizeOperationName(value);
+    return catalog.find((operation) => normalizeOperationName(operation.name) === requested) || null;
+}
+
+function agentCandidates(value, rejected = new Set()) {
+    const verified = verifiedNextStep(value);
+    if (verified && !rejected.has(verified.op)) return { verified, options: [verified.op] };
+    return { verified: null, options: AGENT_CANDIDATE_NAMES.filter((operation) => !rejected.has(operation)) };
+}
+
+function agentPrompt(value, catalog, trace, rejected) {
     const facts = outputFacts(value);
-    return `You are selecting one safe next CyberChef operation in an iterative local solver. The application will dry-run exactly one operation, inspect the result, and ask again. Never invent an operation or argument. Return only JSON: {"operation":"exact operation name or empty string","args":[],"confidence":"high|medium|low","why":"short evidence-based reason","stop":true|false}. Stop when no safe next operation is justified.\n\nCANDIDATE OPERATIONS (choose one or stop): ${options.join(", ")}\n\nCURRENT OUTPUT FACTS\nType: ${facts.type}\nSize: ${facts.byteLength} bytes\nPreview:\n---\n${facts.preview}\n---\n\nSTEPS ALREADY DRY-RUN:\n${trace.length ? trace.map((step, index) => `${index + 1}. ${step.op}`).join("\n") : "None"}`;
+    const catalogText = catalog.map((operation) => `- ${operation.name}${operation.arguments.length ? ` — arguments: ${operation.arguments.join("; ")}` : " — no arguments"}`).join("\n");
+    return `You are selecting one safe next CyberChef operation in a bounded local solver. The application will dry-run exactly one operation, inspect the result, and either keep it or remove it before trying again. Choose only an exact operation from the live catalog. Never invent an operation or argument. Return only JSON: {"operation":"exact catalog name or empty string","args":[],"confidence":"high|medium|low","why":"short evidence-based reason","stop":true|false}. Stop when no safe next operation is justified.\n\nLIVE CANDIDATE OPERATIONS:\n${catalogText}\n\nCURRENT OUTPUT FACTS\nType: ${facts.type}\nSize: ${facts.byteLength} bytes\nPreview:\n---\n${facts.preview}\n---\n\nSTEPS KEPT SO FAR:\n${trace.length ? trace.map((step, index) => `${index + 1}. ${step.op}`).join("\n") : "None"}\n\nOPERATIONS ALREADY REJECTED FOR THIS SAME LAYER:\n${rejected.size ? [...rejected].join(", ") : "None"}`;
+}
+
+function directionPrompt(before, step, after, trace) {
+    return `You are the direction checker in a bounded CyberChef solver. A candidate operation was dry-run in a temporary workspace. Decide whether it moves toward a useful decoded result. Return only JSON: {"decision":"keep|rollback|solved","why":"short evidence-based reason"}. Use rollback for gibberish, an error, no meaningful improvement, or a wrong layer. Use keep when another likely layer remains. Use solved only when the result is a meaningful terminal result.\n\nBEFORE\nType: ${before.type}\nSize: ${before.byteLength} bytes\nPreview:\n---\n${before.preview}\n---\n\nTESTED OPERATION\n${step.op}\n\nAFTER\nType: ${after.type}\nSize: ${after.byteLength} bytes\nPreview:\n---\n${after.preview}\n---\n\nKEPT RECIPE\n${trace.length ? trace.map((item, index) => `${index + 1}. ${item.op}`).join("\n") : "None"}`;
+}
+
+function localDirection(after) {
+    if (isReadableTerminal(after)) return { decision: "solved", why: "The temporary output is readable text." };
+    if (verifiedNextStep(after)) return { decision: "keep", why: "The temporary output exposes another locally verified layer." };
+    return { decision: "rollback", why: "No locally verified improvement was found." };
 }
 
 function modelRecipePrompt(input, rationale = "", catalog = []) {
@@ -508,66 +542,130 @@ async function solveTemporarily(initial, signal, onProgress = () => {}) {
     const recipe = [];
     const trace = [];
     const seen = new Set();
+    const rejectedByState = new Map();
     let current = initial;
+    let trials = 0;
     const started = performance.now();
     let stopReason = "No further safe operation was justified.";
     const initialFacts = outputFacts(current);
     seen.add(`${initialFacts.type}:${initialFacts.byteLength}:${initialFacts.preview}`);
-    for (let index = 0; index < AGENT_LIMITS.maxSteps; index++) {
+    while (trials < AGENT_LIMITS.maxTrials && recipe.length < AGENT_LIMITS.maxSteps) {
         if (signal.aborted) throw new DOMException("Temporary solve cancelled", "AbortError");
-            if (performance.now() - started > HARNESS_LIMITS.analysisEmergencyMs) {
-                stopReason = `The ${Math.round(HARNESS_LIMITS.analysisEmergencyMs / 60000)} minute analysis safety limit was reached.`;
-                break;
-            }
-            const { verified, options } = agentCandidates(current);
-            let step = verified;
-            if (!step && isReadableTerminal(current)) {
-                stopReason = "The temporary output is readable text with no further verified layer.";
-                break;
-            }
-            if (!step) {
-                if (!modelSelect.value) {
-                    stopReason = "No local Ollama model is selected for this uncertain layer.";
-                    break;
-                }
-                onProgress(`Step ${index + 1}: consulting the local model…`);
-                const { result: choice } = await askOllama(agentPrompt(current, options, recipe), signal, {
-                    numPredict: HARNESS_LIMITS.analysisNumPredict,
-                    onProgress: () => onProgress(`Step ${index + 1}: local model is responding…`)
-                });
-                if (choice.stop || !choice.operation) {
-                    stopReason = choice.why || "The model stopped because no safe next step was justified.";
-                    break;
-                }
-                if (!options.includes(choice.operation)) throw new Error(`The model selected an operation outside the narrowed candidate list: ${choice.operation}`);
-                step = { op: choice.operation, args: Array.isArray(choice.args) ? choice.args : [], confidence: choice.confidence || "low", why: choice.why || "Model-selected candidate." };
-            }
-            const checked = validateProposal([{ operation: step.op, args: step.args, confidence: step.confidence, why: step.why }]);
-            if (checked.steps.length !== 1) throw new Error(checked.rejected.join(" ") || "The selected operation is invalid.");
-            recipe.push(checked.steps[0]);
-            const beforeFacts = outputFacts(current);
-            const beforeFingerprint = `${beforeFacts.type}:${beforeFacts.byteLength}:${beforeFacts.preview}`;
-            onProgress(`Step ${index + 1}: testing ${step.op} locally…`);
-            current = await temporaryBake(initial, recipe.map(({ op, args }) => ({ op, args })), signal);
-            const facts = outputFacts(current);
-            trace.push(agentTraceLine(checked.steps[0], facts));
-            const fingerprint = `${facts.type}:${facts.byteLength}:${facts.preview}`;
-            if (fingerprint === beforeFingerprint) {
-                stopReason = "The tested operation made no observable change, so the loop was stopped.";
-                break;
-            }
-            if (seen.has(fingerprint)) {
-                stopReason = "The temporary output repeated, so the loop was stopped.";
-                break;
-            }
-            seen.add(fingerprint);
-            if (facts.byteLength > AGENT_LIMITS.maxBytes) {
-                stopReason = "The temporary output exceeded the 1 MB limit.";
-                break;
-            }
+        if (performance.now() - started > HARNESS_LIMITS.analysisEmergencyMs) {
+            stopReason = `The ${Math.round(HARNESS_LIMITS.analysisEmergencyMs / 60000)} minute analysis safety limit was reached.`;
+            break;
         }
-    if (recipe.length >= AGENT_LIMITS.maxSteps) stopReason = `The ${AGENT_LIMITS.maxSteps}-step limit was reached.`;
-    return { recipe, trace, current, stopReason, elapsedMs: performance.now() - started };
+        const beforeFacts = outputFacts(current);
+        const stateKey = `${beforeFacts.type}:${beforeFacts.byteLength}:${beforeFacts.preview}`;
+        const rejected = rejectedByState.get(stateKey) || new Set();
+        const { verified, options } = agentCandidates(current, rejected);
+        if (!verified && isLikelyPlainText(current)) {
+            stopReason = "The input is ordinary readable text with no locally detected encoding or cipher indicator; no CyberChef operation was applied.";
+            break;
+        }
+        const catalog = agentOperationCatalog(options);
+        let step = verified;
+        if (!step) {
+            if (!catalog.length) {
+                stopReason = "All available candidate operations were rejected for this layer.";
+                break;
+            }
+            if (!modelSelect.value) {
+                stopReason = isReadableTerminal(current) ? "The temporary output is readable text; no local model is selected to inspect another layer." : "No local Ollama model is selected for this uncertain layer.";
+                break;
+            }
+            onProgress(`Trial ${trials + 1}/${AGENT_LIMITS.maxTrials}: choosing a CyberChef operation…`);
+            const { result: choice } = await askOllama(agentPrompt(current, catalog, recipe, rejected), signal, {
+                numPredict: 192,
+                think: false,
+                onProgress: () => onProgress(`Trial ${trials + 1}/${AGENT_LIMITS.maxTrials}: local model is choosing…`)
+            });
+            if (choice.stop || !choice.operation) {
+                stopReason = choice.why || "The model stopped because no safe next operation was justified.";
+                break;
+            }
+            const selected = resolveCatalogOperation(choice.operation, catalog);
+            if (!selected) {
+                const invalidChoice = String(choice.operation || "no operation").trim() || "no operation";
+                rejected.add(invalidChoice);
+                rejectedByState.set(stateKey, rejected);
+                trace.push(`Trial ${trials + 1}: rejected ${invalidChoice} before execution — it is not in the live candidate catalog.`);
+                trials++;
+                continue;
+            }
+            step = { op: selected.name, args: Array.isArray(choice.args) ? choice.args : [], confidence: choice.confidence || "low", why: choice.why || "Model-selected candidate." };
+        }
+        const checked = validateProposal([{ operation: step.op, args: step.args, confidence: step.confidence, why: step.why }]);
+        if (checked.steps.length !== 1) {
+            rejected.add(step.op);
+            rejectedByState.set(stateKey, rejected);
+            trace.push(`Trial ${trials + 1}: rejected ${step.op} before execution — ${checked.rejected.join(" ") || "invalid operation."}`);
+            trials++;
+            continue;
+        }
+        trials++;
+        let after;
+        try {
+            onProgress(`Trial ${trials}/${AGENT_LIMITS.maxTrials}: testing ${step.op} in CyberChef…`);
+            after = await temporaryBake(initial, [...recipe, checked.steps[0]].map(({ op, args }) => ({ op, args })), signal);
+        } catch (error) {
+            if (error.name === "AbortError") throw error;
+            rejected.add(step.op);
+            rejectedByState.set(stateKey, rejected);
+            trace.push(`Trial ${trials}: rejected ${step.op} — CyberChef could not apply it (${error.message}).`);
+            continue;
+        }
+        const afterFacts = outputFacts(after);
+        const fingerprint = `${afterFacts.type}:${afterFacts.byteLength}:${afterFacts.preview}`;
+        let direction;
+        if (fingerprint === stateKey) {
+            direction = { decision: "rollback", why: "The trial made no observable change." };
+        } else if (seen.has(fingerprint)) {
+            direction = { decision: "rollback", why: "The trial repeated an earlier temporary output." };
+        } else if (afterFacts.byteLength > AGENT_LIMITS.maxBytes) {
+            direction = { decision: "rollback", why: "The trial exceeded the 1 MB temporary-output limit." };
+        } else if (verified) {
+            // A parser-confirmed URL/Base64/hex/JWT/gzip layer is stronger
+            // evidence than a small local model's opinion. Continue through
+            // the deterministic chain without asking the model to veto it.
+            direction = localDirection(after);
+        } else if (modelSelect.value) {
+            try {
+                onProgress(`Trial ${trials}/${AGENT_LIMITS.maxTrials}: checking whether ${step.op} improved the result…`);
+                const { result: verdict } = await askOllama(directionPrompt(beforeFacts, checked.steps[0], afterFacts, recipe), signal, {
+                    numPredict: 160,
+                    think: false,
+                    onProgress: () => onProgress(`Trial ${trials}/${AGENT_LIMITS.maxTrials}: local model is checking direction…`)
+                });
+                direction = ["keep", "rollback", "solved"].includes(verdict.decision) ? {
+                    decision: verdict.decision,
+                    why: verdict.why || "Model direction check."
+                } : localDirection(after);
+            } catch (error) {
+                if (error.name === "AbortError") throw error;
+                direction = verified ? localDirection(after) : { decision: "rollback", why: `The direction check failed: ${error.message}` };
+            }
+        } else {
+            direction = localDirection(after);
+        }
+        if (direction.decision === "rollback") {
+            rejected.add(step.op);
+            rejectedByState.set(stateKey, rejected);
+            trace.push(`Trial ${trials}: rejected ${step.op} — ${direction.why}`);
+            continue;
+        }
+        recipe.push(checked.steps[0]);
+        current = after;
+        seen.add(fingerprint);
+        trace.push(`Trial ${trials}: kept ${agentTraceLine(checked.steps[0], afterFacts)} Direction: ${direction.why}`);
+        if (direction.decision === "solved") {
+            stopReason = `The temporary solver reached a meaningful result after ${trials} trial${trials === 1 ? "" : "s"}.`;
+            break;
+        }
+    }
+    if (trials >= AGENT_LIMITS.maxTrials) stopReason = `The ${AGENT_LIMITS.maxTrials}-trial limit was reached.`;
+    else if (recipe.length >= AGENT_LIMITS.maxSteps) stopReason = `The ${AGENT_LIMITS.maxSteps}-step recipe limit was reached.`;
+    return { recipe, trace, current, stopReason, trials, elapsedMs: performance.now() - started };
 }
 
 async function runIterativeSolve() {
@@ -604,7 +702,7 @@ async function runIterativeSolve() {
         const elapsed = Math.floor((Date.now() - analysisStartedAt) / 1000);
         stopAnalysisTimer();
         analysisStatus.textContent = `Completed locally with ${modelSelect.value || "no model"} in ${elapsed}s`;
-        response.textContent = `ANALYSIS\n${result.stopReason}\n\nSTEPS TESTED\n${result.trace.length ? result.trace.map((line, index) => `${index + 1}. ${line}`).join("\n") : "No safe transformation was applied."}\n\nTEMPORARY OUTPUT\n${finalFacts.preview}\n\n${reviewText}`;
+        response.textContent = `ANALYSIS\n${result.stopReason}\n\nTRIALS\n${result.trials}/${AGENT_LIMITS.maxTrials} temporary operation trials used. Rejected trials were removed before the next attempt.\n\nSTEPS TESTED\n${result.trace.length ? result.trace.map((line, index) => `${index + 1}. ${line}`).join("\n") : "No safe transformation was applied."}\n\nTEMPORARY OUTPUT\n${finalFacts.preview}\n\n${reviewText}`;
         if (result.recipe.length) renderAgentProposal(result.recipe, result.stopReason);
     } catch (error) {
         stopAnalysisTimer();

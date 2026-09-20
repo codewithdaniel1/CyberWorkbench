@@ -39,4 +39,11 @@ const layered = deterministicRecipeChain(layeredInput);
 assert.deepEqual(layered.steps.map((step) => step.op), ["From Base64", "URL Decode", "From Hex"]);
 assert.equal(layered.output, "signal: cobalt-iguana-731\n");
 
-console.log(`Cyber Workbench triage evaluation passed (${cases.length} recipe cases, 9 file-safety checks, 1 layered chain).`);
+// Regression: test3file is three deterministic layers. The agent harness must
+// take this exact local chain without requiring a model to approve each layer.
+const test3Input = (await readFile(new URL("../../examples/triage/test3file", import.meta.url), "utf8")).trim();
+const test3 = deterministicRecipeChain(test3Input);
+assert.deepEqual(test3.steps.map((step) => step.op), ["URL Decode", "URL Decode", "From Hex"]);
+assert.equal(test3.output, "packet: moss-otter-46\n");
+
+console.log(`Cyber Workbench triage evaluation passed (${cases.length} recipe cases, 9 file-safety checks, 2 layered chains).`);
