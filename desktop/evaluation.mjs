@@ -185,7 +185,10 @@ export function scoreModelResponse(modelResult, evaluationCase) {
     const classification = typeof modelResult?.classification === "string" ? modelResult.classification.trim().toLowerCase() : "";
     const expectedClassification = evaluationCase.expectedClassification || "";
     const classificationMatch = expectedClassification ? classification === expectedClassification : null;
-    return { operations, recipeMatch, classification, classificationMatch, outputMatch: null, passed: recipeMatch && classificationMatch !== false };
+    // A scorecard pass measures whether the model selected the exact runnable
+    // Chef recipe. Classification is useful diagnostic evidence, but must not
+    // turn a correct recipe into a failure.
+    return { operations, recipeMatch, classification, classificationMatch, outputMatch: null, passed: recipeMatch };
 }
 
 export function scorecardSummary(results) {

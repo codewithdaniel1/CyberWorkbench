@@ -8,6 +8,7 @@ const wrongOrder = scoreAgentRun(["From Hex", "From Base64", "URL Decode", "URL 
 const wrongOutput = scoreAgentRun(["From Base64", "From Hex"], "wrong", byId("base64-hex"));
 const modelBase64 = scoreModelResponse({ classification: "base64", recipe: [{ operation: "From Base64", args: [] }] }, byId("base64"));
 const modelLayered = scoreModelResponse({ classification: "layered encoding", recipe: [{ operation: "URL Decode", args: [] }, { operation: "From Base64", args: [] }] }, byId("url-base64"));
+const modelCorrectRecipeBadClassification = scoreModelResponse({ classification: "one allowed value", recipe: [{ operation: "From Base64", args: [] }] }, byId("base64"));
 
 assert.equal(validateEvaluationCases(), true);
 assert.equal(evaluationCases.every((evaluationCase) => evaluationCase.expectedOperations.length > 0), true);
@@ -19,6 +20,8 @@ assert.equal(wrongOutput.passed, false);
 assert.equal(base64.outputMatch, true);
 assert.equal(modelBase64.passed, true);
 assert.equal(modelLayered.passed, true);
+assert.equal(modelCorrectRecipeBadClassification.passed, true);
+assert.equal(modelCorrectRecipeBadClassification.classificationMatch, false);
 assert.deepEqual(byId("layered").expectedOperations, ["From Base64", "URL Decode", "URL Decode", "From Hex"]);
 assert.deepEqual(byId("gzip").expectedOperations, ["From Base64", "Gunzip"]);
 assert.deepEqual(byId("html-entity").expectedOperations, ["From HTML Entity"]);
