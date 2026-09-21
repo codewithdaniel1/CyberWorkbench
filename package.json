@@ -213,7 +213,7 @@
     "desktop:prepare": "npm run build && node scripts/prepareDesktop.mjs",
     "desktop:run": "npm run desktop:prepare && cargo run --manifest-path src-tauri/Cargo.toml",
     "desktop:bundle": "npm run desktop:prepare && tauri build",
-    "test:desktop": "node tests/desktop/triage.mjs && node tests/desktop/evaluation.mjs && node tests/desktop/agent.mjs",
+    "test:desktop": "node tests/desktop/triage.mjs && node tests/desktop/evaluation.mjs && node tests/desktop/agent.mjs && node tests/desktop/harness.mjs",
     "test": "npx grunt configTests && node --no-warnings --no-deprecation --openssl-legacy-provider tests/node/index.mjs && node --no-warnings --no-deprecation --openssl-legacy-provider --trace-uncaught tests/operations/index.mjs",
     "testnodeconsumer": "npx grunt testnodeconsumer",
     "testui": "npx grunt testui",

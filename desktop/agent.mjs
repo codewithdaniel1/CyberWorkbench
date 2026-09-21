@@ -10,6 +10,7 @@ export function asBytes(value) {
     // CyberChef's background worker serializes byte output as a regular array.
     // Keep it as bytes rather than turning it into comma-separated decimal text.
     if (Array.isArray(value) && value.every((item) => Number.isInteger(item) && item >= 0 && item <= 255)) return Uint8Array.from(value);
+    if (value && typeof value === "object") return new TextEncoder().encode(JSON.stringify(value));
     return new TextEncoder().encode(String(value || ""));
 }
 
@@ -20,11 +21,19 @@ export function asText(value) {
 
 export function verifiedNextStep(value) {
     const text = asText(value);
+    if (/&#(?:x[0-9a-f]+|\d+);/i.test(text)) return { op: "From HTML Entity", args: [], confidence: "high", why: "The text contains numeric HTML entities." };
     const deterministic = deterministicRecipeChain(text, 1).steps[0];
     if (deterministic) return deterministic;
     const type = detectFileType(asBytes(value));
     if (type === "Gzip stream") return { op: "Gunzip", args: [], confidence: "high", why: "The temporary output has the gzip signature (1f 8b)." };
     if (/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/.test(text.trim())) return { op: "JWT Decode", args: [], confidence: "high", why: "The temporary output has three Base64URL-like JWT segments." };
+    if (text.length >= 12 && /^[\x20-\x7e\r\n\t]+$/.test(text)) {
+        const rotated = text.replace(/[a-z]/gi, (letter) => String.fromCharCode(letter.charCodeAt(0) + (letter.toLowerCase() <= "m" ? 13 : -13)));
+        const common = /\b(?:secret|note|message|hello|the|and|this|flag)\b/gi;
+        const decodedHits = rotated.match(common)?.length || 0;
+        const sourceHits = text.match(common)?.length || 0;
+        if (decodedHits >= 2 && decodedHits > sourceHits) return { op: "ROT13", args: [], confidence: "medium", why: "ROT13 reveals multiple common English words." };
+    }
     return null;
 }
 

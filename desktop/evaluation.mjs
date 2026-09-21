@@ -91,12 +91,12 @@ export const evaluationCases = [
     },
     {
         id: "hex-url",
-        label: "Hex → URL",
+        label: "Hex-encoded URL",
         input: "68747470733a2f2f6578616d706c652e696e76616c69642f613f7461673d6d6172626c652d3438380a",
-        expectedOperations: ["From Hex", "URL Decode"],
+        expectedOperations: ["From Hex"],
         expectedOutput: "https://example.invalid/a?tag=marble-488\n",
         expectedClassification: "layered encoding",
-        rationale: "Hex bytes resolve to a percent-encoded URL."
+        rationale: "Hex bytes resolve directly to a usable URL; an extra URL Decode would be a no-op."
     },
     {
         id: "base64-rot13",

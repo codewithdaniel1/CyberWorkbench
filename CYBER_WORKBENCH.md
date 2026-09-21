@@ -8,7 +8,7 @@ No cloud AI endpoint is configured.
 
 ## Current desktop experience
 
-The left navigation exposes Chef, AI, Files, IOCs, and History. Only Chef and AI are active today.
+The left navigation exposes Chef, AI, Files, IOCs, and History. Chef, AI, and the initial local Files triage are active; IOCs and History remain placeholders.
 
 ### Chef
 
@@ -25,7 +25,9 @@ The AI panel can receive pasted text or a Chef workspace snapshot. Selecting **A
 
 The visible prompt is pre-filled with the workspace summary so the user can inspect or edit it. If the text area is edited, the request becomes a normal pasted-data analysis.
 
-The bridge sends a focused system instruction to Ollama: analyze data rather than application vulnerabilities, do not infer unsupported encodings, and recommend only exact operation names found in CyberChef's live registry. It asks for **VERDICT**, **EVIDENCE**, **RECOMMENDED RECIPE**, **NEXT SAFE STEP**, and **LIMITS**.
+The harness indexes the exact operation definitions from the embedded CyberChef build, then retrieves a shortlist for each intermediate value. It verifies argument defaults, excludes flow-control and manually baked operations from automatic trials, and does not invent absent keys, IVs, or other secrets. The selected Ollama model may reorder candidate operations and review their results; real CyberChef execution and the ten-trial search limit remain authoritative. Alternate branches are preserved so a failed step can be rolled back. An optional user goal steers operation retrieval.
+
+The AI panel offers separate **Model** scorecards for one-shot model planning and **Harness** scorecards for the same end-to-end search used by **Analyze locally**. Each can run the four-case Quick or 15-case Full corpus. The bundled synthetic corpus is a regression check, not proof that arbitrary cryptography has been solved. A versioned cryptography RAG is planned, not yet present.
 
 Requests show an elapsed timer and can be cancelled with `AbortController`.
 
@@ -35,6 +37,10 @@ Requests show an elapsed timer and can be cancelled with `AbortController`.
 | --- | --- |
 | `desktop/index.html` | Workbench shell markup. |
 | `desktop/app.js` | navigation, workspace extraction, prompt construction, and Ollama calls. |
+| `desktop/catalog.mjs` | live CyberChef operation index and per-layer retrieval. |
+| `desktop/operationArgs.mjs` | operation argument defaults and validation. |
+| `desktop/harness.mjs` | bounded, branching recipe search using temporary CyberChef execution. |
+| `desktop/evaluation.mjs` | shared scorecard cases and separate model/harness grading. |
 | `desktop/app.css` | Workbench shell styling. |
 | `src-tauri/` | Tauri configuration, desktop binary, icons, and bundle settings. |
 | `src/web/stylesheets/themes/_workbench.css` | CyberChef's embedded Workbench theme. |

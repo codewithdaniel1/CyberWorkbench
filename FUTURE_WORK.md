@@ -15,6 +15,14 @@ Build a strong local CyberSLM-assisted workflow that can inspect text and files,
 
 ## Next releases
 
+### Recent harness releases — completed locally
+
+1. Indexed the full bundled CyberChef operation catalog and validated its argument defaults. Operations needing a key, IV, manual execution, or flow control are not silently tried; an exact requested operation with missing prerequisites is reported explicitly.
+2. Replaced the fixed candidate loop with bounded branch search over real CyberChef outputs, full-output loop detection, an optional goal, and visible trial-by-trial progress. The visible Chef recipe still requires approval.
+3. Separated the one-shot **Model** scorecard from the end-to-end **Harness** scorecard. Both use the same 4/15-case corpus, while Harness uses the same search path as **Analyze locally**. All 15 cases now have real-CyberChef regression coverage.
+
+The next review is scorecard quality and CyberChef cryptography RAG. The existing synthetic corpus is useful for regression, but needs harder unseen cases, more cryptography prerequisites, and failure-mode diagnostics before it can measure general solving ability. RAG should start with a small, versioned, local knowledge corpus and be evaluated against this stronger holdout set; retrieval must never override CyberChef execution or supply nonexistent secrets.
+
 ### 1. Structured recipe proposal — completed
 
 Ask the model for a validated schema: exact operation name, arguments, confidence, evidence, and rationale. Parse it defensively and show a recipe preview. Do not execute it yet.

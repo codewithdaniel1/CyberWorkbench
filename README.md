@@ -7,11 +7,11 @@ Cyber Workbench is a macOS desktop workbench built around [CyberChef](https://gi
 - **Chef** — the full CyberChef operation, recipe, input, and output workspace.
 - **Local AI analysis** — connect to an already-installed Ollama model at `http://127.0.0.1:11434`; no cloud endpoint or model download is used by the app.
 - **Chef-to-AI handoff** — **Analyze Chef workspace with CyberSLM** opens the AI view with a readable pre-filled snapshot of the original input, current recipe, and current output.
-- **Grounded operation suggestions** — the AI receives CyberChef's live operation list and is instructed to recommend exact operation names only.
-- **Automatic local solve loop** — **Analyze locally** verifies likely layers, selects a live CyberChef operation, dry-runs it in a temporary worker, and checks whether the result improved. A bad trial is removed and excluded for that same intermediate layer before another candidate is tried. The loop is limited to ten trials and never changes visible Chef until you approve the surviving recipe.
+- **Grounded operation suggestions** — the harness indexes all 505 operations in the bundled CyberChef build, retrieves a relevant shortlist for each intermediate value, validates arguments against live definitions, and explains when a requested operation needs a key or other missing input. Not every operation is safe to run automatically.
+- **Automatic local solve loop** — **Analyze locally** explores alternative recipe branches with real CyberChef execution, fingerprints full outputs to avoid loops, and keeps the best tested result within ten trials. An optional **Goal** can steer retrieval. The visible Chef recipe never changes until you approve the proposed steps.
 - **Analysis feedback** — progress, time, and Cancel make long local analysis visible and stoppable. The CyberWorkbench Harness streams model output, permits active reasoning, and stops stalled responses after 45 seconds of inactivity. It caps temporary work at ten trials, ten kept steps, 10 seconds per operation, and 1 MB of output, with a long emergency safety ceiling.
 - **Local file triage** — inspect a local file's signature, size, hash, entropy, and safe text preview before asking Ollama. Text inputs can be loaded into Chef only after you approve a proposed recipe.
-- **Local model scorecard** — run a four-case Quick scorecard or the optional 15-case Full scorecard against the selected Ollama model. Scorecards request concise answer-only JSON (`think: false` where supported), use a smaller output budget, and keep the selected model warm between cases. A scorecard pass means the model selected the exact runnable recipe; recognition is shown separately as a diagnostic, so a bad label cannot hide a correct recipe. Every case has a non-empty, deterministic CyberChef recipe and known final output across Base64, hex, URL, HTML entities, gzip, ROT13, and multi-layer combinations. The model sees exact operation names and argument shapes read from the running CyberChef engine, not a stale hand-written list. This is deliberately model-specific, so switching models changes the result.
+- **Separate local scorecards** — **Model quick/full** measures the selected Ollama model's one-shot recipe planning. **Harness quick/full** runs the same bounded search as **Analyze locally**, including the selected model's choices and checks, then grades both the recipe and final output. Quick covers four cases; Full covers 15. Every case expects at least one real operation and a concrete output. The model-only score is not a measure of end-to-end harness quality.
 
 The **IOCs** and **History** navigation items are placeholders; the **Files** view provides initial local triage.
 
@@ -63,7 +63,7 @@ The AI handoff contains only the current local workspace. Requests are sent only
 | `npm run desktop:prepare` | Prepare the desktop web assets. |
 | `npm run desktop:bundle` | Build the bundled macOS application. |
 | `npm run lint` | Lint the source. |
-| `npm run test:desktop` | Run local file-triage regression evaluations. |
+| `npm run test:desktop` | Run file-triage, scorecard, and real-CyberChef harness regression tests. |
 | `npm test` | Run CyberChef's Node and operation tests. |
 | `npm start` | Run the upstream web development server. |
 

@@ -1,7 +1,9 @@
 import { chefTextInput, detectFileType, deterministicRecipeChain, entropy, hexPreview, safeTextPreview } from "./triage.mjs";
-import { evaluationCases, parseModelJson, scoreModelResponse, scorecardSummary } from "./evaluation.mjs";
-import { AGENT_LIMITS, asBytes, asText, isLikelyPlainText, isReadableTerminal, outputFacts, verifiedNextStep } from "./agent.mjs";
-import { operationArguments } from "./operationArgs.mjs";
+import { evaluationCases, parseModelJson, scoreAgentRun, scoreModelResponse, scorecardSummary } from "./evaluation.mjs";
+import { AGENT_LIMITS, asBytes, asText, outputFacts } from "./agent.mjs";
+import { buildOperationCatalog } from "./catalog.mjs";
+import { searchHarness } from "./harness.mjs";
+import { resolveOperationArguments } from "./operationArgs.mjs";
 
 const pages = {
     chef: ["Chef", "Browser-local data transformation"],
@@ -10,7 +12,7 @@ const pages = {
     iocs: ["IOCs", "Indicators of compromise"],
     history: ["History", "Local session history"]
 };
-const prompt = document.querySelector("#ai-prompt"), response = document.querySelector("#ai-response"), modelSelect = document.querySelector("#model-select"), status = document.querySelector("#ollama-status"), askButton = document.querySelector("#ask-ai"), cancelButton = document.querySelector("#cancel-ai"), analysisStatus = document.querySelector("#analysis-status"), workspaceSummary = document.querySelector("#workspace-summary"), chefFrame = document.querySelector("#chef-frame"), proposal = document.querySelector("#proposal"), proposalSummary = document.querySelector("#proposal-summary"), proposalSteps = document.querySelector("#proposal-steps"), proposalNote = document.querySelector("#proposal-note"), applyProposal = document.querySelector("#apply-proposal"), reviewChef = document.querySelector("#review-chef"), fileInput = document.querySelector("#file-input"), fileDrop = document.querySelector("#file-drop"), fileReport = document.querySelector("#file-report"), fileName = document.querySelector("#file-name"), fileFacts = document.querySelector("#file-facts"), filePreview = document.querySelector("#file-preview"), analyzeFile = document.querySelector("#analyze-file"), scoreQuickButton = document.querySelector("#run-quick-scorecard"), scoreFullButton = document.querySelector("#run-full-scorecard"), scoreSummary = document.querySelector("#score-summary"), scoreRows = document.querySelector("#score-rows");
+const prompt = document.querySelector("#ai-prompt"), analysisGoal = document.querySelector("#analysis-goal"), response = document.querySelector("#ai-response"), modelSelect = document.querySelector("#model-select"), status = document.querySelector("#ollama-status"), askButton = document.querySelector("#ask-ai"), cancelButton = document.querySelector("#cancel-ai"), analysisStatus = document.querySelector("#analysis-status"), workspaceSummary = document.querySelector("#workspace-summary"), chefFrame = document.querySelector("#chef-frame"), proposal = document.querySelector("#proposal"), proposalSummary = document.querySelector("#proposal-summary"), proposalSteps = document.querySelector("#proposal-steps"), proposalNote = document.querySelector("#proposal-note"), applyProposal = document.querySelector("#apply-proposal"), reviewChef = document.querySelector("#review-chef"), fileInput = document.querySelector("#file-input"), fileDrop = document.querySelector("#file-drop"), fileReport = document.querySelector("#file-report"), fileName = document.querySelector("#file-name"), fileFacts = document.querySelector("#file-facts"), filePreview = document.querySelector("#file-preview"), analyzeFile = document.querySelector("#analyze-file"), scoreQuickButton = document.querySelector("#run-quick-scorecard"), scoreFullButton = document.querySelector("#run-full-scorecard"), harnessQuickButton = document.querySelector("#run-quick-harness"), harnessFullButton = document.querySelector("#run-full-harness"), scoreSummary = document.querySelector("#score-summary"), scoreRows = document.querySelector("#score-rows");
 const selectedModelStorageKey = "cyber-workbench.selected-ollama-model";
 const HARNESS_LIMITS = Object.freeze({
     firstResponseMs: 90000,
@@ -23,9 +25,6 @@ const HARNESS_LIMITS = Object.freeze({
 });
 const SCORECARD_CATALOG_EXTRAS = Object.freeze([
     "To Base64", "To Hex", "URL Encode", "Gzip", "JWT Decode", "XOR", "XOR Brute Force", "AES Decrypt", "SHA2", "PGP Decrypt", "Magic"
-]);
-const AGENT_CANDIDATE_NAMES = Object.freeze([
-    "From Base64", "From Hex", "URL Decode", "Gunzip", "JWT Decode", "ROT13", "From HTML Entity", "Magic"
 ]);
 let preferredModel = "", preferredModelLoaded = false;
 let evaluationController, agentController, analysisTimer, analysisStartedAt, analysisPhase = "", workspace, fileTriage, proposedSteps = [];
@@ -195,11 +194,6 @@ function readChefWorkspace() {
     };
 }
 
-function validArgument(argument) {
-    if (["string", "number", "boolean"].includes(typeof argument)) return true;
-    return argument && typeof argument === "object" && typeof argument.option === "string" && typeof argument.string === "string";
-}
-
 function operationArgumentDescription(argument) {
     const options = Array.isArray(argument?.value) ? argument.value
         .map((value) => typeof value === "string" ? value : value?.name)
@@ -245,15 +239,13 @@ function validateProposal(recipe) {
         const config = app.operations[operation];
         if (!config) {
             rejected.push(`“${operation || "Unnamed step"}” is not an available CyberChef operation.`);
-        } else if (args.length > config.args.length || !args.every(validArgument)) {
-            rejected.push(`“${operation}” has unsupported arguments.`);
         } else {
-            steps.push({
-                op: operation,
-                args: operationArguments(config.args, args),
-                confidence: item.confidence || "low",
-                why: item.why || "No rationale supplied."
-            });
+            const resolved = resolveOperationArguments(config.args, args);
+            if (resolved.errors.length || resolved.missing.length) {
+                rejected.push(`“${operation}” ${[...resolved.errors, ...resolved.missing.map((name) => `requires ${name}`)].join(" ")}`);
+            } else {
+                steps.push({ op: operation, args: resolved.args, confidence: item.confidence || "low", why: item.why || "No rationale supplied." });
+            }
         }
     }
     return { steps, rejected };
@@ -323,12 +315,16 @@ cancelButton.addEventListener("click", () => {
 function setScorecardControlsDisabled(disabled) {
     scoreQuickButton.disabled = disabled;
     scoreFullButton.disabled = disabled;
+    harnessQuickButton.disabled = disabled;
+    harnessFullButton.disabled = disabled;
 }
 
-function renderScorecard(results, note = "") {
+function renderScorecard(results, note = "", engine = "model") {
     const summary = scorecardSummary(results);
     const outputSummary = summary.outputTotal ? ` · outputs ${summary.outputMatches}/${summary.outputTotal}` : "";
-    scoreSummary.textContent = `${modelSelect.value} · recipe passes ${summary.passed}/${summary.total} · recognition ${summary.classifications}/${summary.classificationTotal} · exact recipes ${summary.exactRecipes}/${summary.total}${outputSummary} · ${(summary.latency / 1000).toFixed(1)}s total${note ? ` · ${note}` : ""}`;
+    const recognitionSummary = engine === "model" ? ` · recognition ${summary.classifications}/${summary.classificationTotal}` : "";
+    const source = engine === "harness" ? `CyberWorkbench Harness (${modelSelect.value || "no model"})` : modelSelect.value;
+    scoreSummary.textContent = `${source} · recipe passes ${summary.passed}/${summary.total}${recognitionSummary} · exact recipes ${summary.exactRecipes}/${summary.total}${outputSummary} · ${(summary.latency / 1000).toFixed(1)}s total${note ? ` · ${note}` : ""}`;
     scoreRows.replaceChildren();
     for (const { evaluationCase, score, latencyMs } of results) {
         const row = document.createElement("li");
@@ -336,7 +332,7 @@ function renderScorecard(results, note = "") {
         const expected = evaluationCase.expectedOperations.join(" → ");
         const actual = score.operations.length ? score.operations.join(" → ") : "No recipe";
         const output = score.outputMatch === null ? "recipe planner only; final output is checked by the deterministic regression" : score.outputMatch ? "output matched" : "output mismatch";
-        const recognition = evaluationCase.expectedClassification ? ` · recognition: ${score.classification || "none"}/${evaluationCase.expectedClassification}` : "";
+        const recognition = engine === "model" && evaluationCase.expectedClassification ? ` · recognition: ${score.classification || "none"}/${evaluationCase.expectedClassification}` : "";
         row.textContent = `${score.passed ? "PASS" : "FAIL"} · ${evaluationCase.label} · expected: ${expected} · returned: ${actual}${recognition} · ${output}${score.error ? ` · ${score.error}` : ""} · ${(latencyMs / 1000).toFixed(1)}s`;
         scoreRows.append(row);
     }
@@ -370,46 +366,14 @@ function temporaryBake(input, recipe, signal) {
     });
 }
 
-function agentOperationCatalog(options) {
-    const operations = chefFrame.contentWindow?.app?.operations || {};
-    return options.filter((name) => operations[name]).map((name) => ({
-        name,
-        arguments: (operations[name].args || []).map(operationArgumentDescription)
-    }));
-}
-
-// Local models commonly preserve the operation words but alter whitespace or
-// casing. Resolve those harmless variations to the exact name exported by the
-// currently running CyberChef build. Anything else remains invalid.
-function normalizeOperationName(value) {
-    return String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
-}
-
-function resolveCatalogOperation(value, catalog) {
-    const requested = normalizeOperationName(value);
-    return catalog.find((operation) => normalizeOperationName(operation.name) === requested) || null;
-}
-
-function agentCandidates(value, rejected = new Set()) {
-    const verified = verifiedNextStep(value);
-    if (verified && !rejected.has(verified.op)) return { verified, options: [verified.op] };
-    return { verified: null, options: AGENT_CANDIDATE_NAMES.filter((operation) => !rejected.has(operation)) };
-}
-
-function agentPrompt(value, catalog, trace, rejected) {
+function agentPrompt(value, catalog, trace, goal) {
     const facts = outputFacts(value);
-    const catalogText = catalog.map((operation) => `- ${operation.name}${operation.arguments.length ? ` — arguments: ${operation.arguments.join("; ")}` : " — no arguments"}`).join("\n");
-    return `You are selecting one safe next CyberChef operation in a bounded local solver. The application will dry-run exactly one operation, inspect the result, and either keep it or remove it before trying again. Choose only an exact operation from the live catalog. Never invent an operation or argument. Return only JSON: {"operation":"exact catalog name or empty string","args":[],"confidence":"high|medium|low","why":"short evidence-based reason","stop":true|false}. Stop when no safe next operation is justified.\n\nLIVE CANDIDATE OPERATIONS:\n${catalogText}\n\nCURRENT OUTPUT FACTS\nType: ${facts.type}\nSize: ${facts.byteLength} bytes\nPreview:\n---\n${facts.preview}\n---\n\nSTEPS KEPT SO FAR:\n${trace.length ? trace.map((step, index) => `${index + 1}. ${step.op}`).join("\n") : "None"}\n\nOPERATIONS ALREADY REJECTED FOR THIS SAME LAYER:\n${rejected.size ? [...rejected].join(", ") : "None"}`;
+    const catalogText = catalog.map((operation) => `- ${operation.name}: ${operation.description.slice(0, 140)}${operation.definitions.length ? ` — arguments: ${operation.definitions.map(operationArgumentDescription).join("; ")}` : ""}`).join("\n");
+    return `Choose the next CyberChef operation for a temporary local search. This shortlist was retrieved from all operations in the running engine. Return JSON only: {"operation":"exact shortlist name or empty string","args":[],"why":"brief evidence","stop":false}. Choose a listed name and supply arguments only when the defaults are unsuitable. Never invent a key, IV, passphrase, or decoded result.\n\nUSER GOAL: ${goal || "Inspect and decode the input if justified."}\n\nSHORTLIST:\n${catalogText}\n\nCURRENT DATA\nType: ${facts.type}; ${facts.byteLength} bytes\n${facts.preview}\n\nSTEPS KEPT:\n${trace.length ? trace.map((step) => step.op).join(" → ") : "None"}`;
 }
 
 function directionPrompt(before, step, after, trace) {
     return `You are the direction checker in a bounded CyberChef solver. A candidate operation was dry-run in a temporary workspace. Decide whether it moves toward a useful decoded result. Return only JSON: {"decision":"keep|rollback|solved","why":"short evidence-based reason"}. Use rollback for gibberish, an error, no meaningful improvement, or a wrong layer. Use keep when another likely layer remains. Use solved only when the result is a meaningful terminal result.\n\nBEFORE\nType: ${before.type}\nSize: ${before.byteLength} bytes\nPreview:\n---\n${before.preview}\n---\n\nTESTED OPERATION\n${step.op}\n\nAFTER\nType: ${after.type}\nSize: ${after.byteLength} bytes\nPreview:\n---\n${after.preview}\n---\n\nKEPT RECIPE\n${trace.length ? trace.map((item, index) => `${index + 1}. ${item.op}`).join("\n") : "None"}`;
-}
-
-function localDirection(after) {
-    if (verifiedNextStep(after)) return { decision: "keep", why: "The temporary output exposes another locally verified layer." };
-    if (isReadableTerminal(after)) return { decision: "solved", why: "The temporary output is readable text with no further locally verified layer." };
-    return { decision: "rollback", why: "No locally verified improvement was found." };
 }
 
 function modelRecipePrompt(input, rationale = "", catalog = []) {
@@ -536,142 +500,30 @@ function renderAgentProposal(steps, message) {
     reviewChef.hidden = true;
 }
 
-function agentTraceLine(step, facts) {
-    return `${step.op} → ${facts.type}, ${facts.byteLength} bytes. ${step.why}`;
-}
-
-async function solveTemporarily(initial, signal, onProgress = () => {}) {
+async function solveTemporarily(initial, signal, onProgress = () => {}, goal = "") {
     const app = chefFrame.contentWindow?.app;
     if (!app?.operations || !app?.manager?.background) {
         throw new Error("CyberChef temporary worker is not ready");
     }
-    const recipe = [];
-    const trace = [];
-    const seen = new Set();
-    const rejectedByState = new Map();
-    let current = initial;
-    let trials = 0;
+    const catalog = buildOperationCatalog(app.operations);
     const started = performance.now();
-    let stopReason = "No further safe operation was justified.";
-    const initialFacts = outputFacts(current);
-    seen.add(`${initialFacts.type}:${initialFacts.byteLength}:${initialFacts.preview}`);
-    while (trials < AGENT_LIMITS.maxTrials && recipe.length < AGENT_LIMITS.maxSteps) {
-        if (signal.aborted) throw new DOMException("Temporary solve cancelled", "AbortError");
-        if (performance.now() - started > HARNESS_LIMITS.analysisEmergencyMs) {
-            stopReason = `The ${Math.round(HARNESS_LIMITS.analysisEmergencyMs / 60000)} minute analysis safety limit was reached.`;
-            break;
-        }
-        const beforeFacts = outputFacts(current);
-        const stateKey = `${beforeFacts.type}:${beforeFacts.byteLength}:${beforeFacts.preview}`;
-        const rejected = rejectedByState.get(stateKey) || new Set();
-        const { verified, options } = agentCandidates(current, rejected);
-        if (!verified && isLikelyPlainText(current)) {
-            stopReason = "The input is ordinary readable text with no locally detected encoding or cipher indicator; no CyberChef operation was applied.";
-            break;
-        }
-        const catalog = agentOperationCatalog(options);
-        let step = verified;
-        if (!step) {
-            if (!catalog.length) {
-                stopReason = "All available candidate operations were rejected for this layer.";
-                break;
-            }
-            if (!modelSelect.value) {
-                stopReason = isReadableTerminal(current) ? "The temporary output is readable text; no local model is selected to inspect another layer." : "No local Ollama model is selected for this uncertain layer.";
-                break;
-            }
-            onProgress(`Trial ${trials + 1}/${AGENT_LIMITS.maxTrials}: choosing a CyberChef operation…`);
-            const { result: choice } = await askOllama(agentPrompt(current, catalog, recipe, rejected), signal, {
-                numPredict: 192,
-                think: false,
-                onProgress: () => onProgress(`Trial ${trials + 1}/${AGENT_LIMITS.maxTrials}: local model is choosing…`)
-            });
-            if (choice.stop || !choice.operation) {
-                stopReason = choice.why || "The model stopped because no safe next operation was justified.";
-                break;
-            }
-            const selected = resolveCatalogOperation(choice.operation, catalog);
-            if (!selected) {
-                const invalidChoice = String(choice.operation || "no operation").trim() || "no operation";
-                rejected.add(invalidChoice);
-                rejectedByState.set(stateKey, rejected);
-                trace.push(`Trial ${trials + 1}: rejected ${invalidChoice} before execution — it is not in the live candidate catalog.`);
-                trials++;
-                continue;
-            }
-            step = { op: selected.name, args: Array.isArray(choice.args) ? choice.args : [], confidence: choice.confidence || "low", why: choice.why || "Model-selected candidate." };
-        }
-        const checked = validateProposal([{ operation: step.op, args: step.args, confidence: step.confidence, why: step.why }]);
-        if (checked.steps.length !== 1) {
-            rejected.add(step.op);
-            rejectedByState.set(stateKey, rejected);
-            trace.push(`Trial ${trials + 1}: rejected ${step.op} before execution — ${checked.rejected.join(" ") || "invalid operation."}`);
-            trials++;
-            continue;
-        }
-        trials++;
-        let after;
-        try {
-            onProgress(`Trial ${trials}/${AGENT_LIMITS.maxTrials}: testing ${step.op} in CyberChef…`);
-            after = await temporaryBake(initial, [...recipe, checked.steps[0]].map(({ op, args }) => ({ op, args })), signal);
-        } catch (error) {
-            if (error.name === "AbortError") throw error;
-            rejected.add(step.op);
-            rejectedByState.set(stateKey, rejected);
-            trace.push(`Trial ${trials}: rejected ${step.op} — CyberChef could not apply it (${error.message}).`);
-            continue;
-        }
-        const afterFacts = outputFacts(after);
-        const fingerprint = `${afterFacts.type}:${afterFacts.byteLength}:${afterFacts.preview}`;
-        let direction;
-        if (fingerprint === stateKey) {
-            direction = { decision: "rollback", why: "The trial made no observable change." };
-        } else if (seen.has(fingerprint)) {
-            direction = { decision: "rollback", why: "The trial repeated an earlier temporary output." };
-        } else if (afterFacts.byteLength > AGENT_LIMITS.maxBytes) {
-            direction = { decision: "rollback", why: "The trial exceeded the 1 MB temporary-output limit." };
-        } else if (verified) {
-            // A parser-confirmed URL/Base64/hex/JWT/gzip layer is stronger
-            // evidence than a small local model's opinion. Continue through
-            // the deterministic chain without asking the model to veto it.
-            direction = localDirection(after);
-        } else if (modelSelect.value) {
-            try {
-                onProgress(`Trial ${trials}/${AGENT_LIMITS.maxTrials}: checking whether ${step.op} improved the result…`);
-                const { result: verdict } = await askOllama(directionPrompt(beforeFacts, checked.steps[0], afterFacts, recipe), signal, {
-                    numPredict: 160,
-                    think: false,
-                    onProgress: () => onProgress(`Trial ${trials}/${AGENT_LIMITS.maxTrials}: local model is checking direction…`)
-                });
-                direction = ["keep", "rollback", "solved"].includes(verdict.decision) ? {
-                    decision: verdict.decision,
-                    why: verdict.why || "Model direction check."
-                } : localDirection(after);
-            } catch (error) {
-                if (error.name === "AbortError") throw error;
-                direction = verified ? localDirection(after) : { decision: "rollback", why: `The direction check failed: ${error.message}` };
-            }
-        } else {
-            direction = localDirection(after);
-        }
-        if (direction.decision === "rollback") {
-            rejected.add(step.op);
-            rejectedByState.set(stateKey, rejected);
-            trace.push(`Trial ${trials}: rejected ${step.op} — ${direction.why}`);
-            continue;
-        }
-        recipe.push(checked.steps[0]);
-        current = after;
-        seen.add(fingerprint);
-        trace.push(`Trial ${trials}: kept ${agentTraceLine(checked.steps[0], afterFacts)} Direction: ${direction.why}`);
-        if (direction.decision === "solved") {
-            stopReason = `The temporary solver reached a meaningful result after ${trials} trial${trials === 1 ? "" : "s"}.`;
-            break;
-        }
-    }
-    if (trials >= AGENT_LIMITS.maxTrials) stopReason = `The ${AGENT_LIMITS.maxTrials}-trial limit was reached.`;
-    else if (recipe.length >= AGENT_LIMITS.maxSteps) stopReason = `The ${AGENT_LIMITS.maxSteps}-step recipe limit was reached.`;
-    return { recipe, trace, current, stopReason, trials, elapsedMs: performance.now() - started };
+    const result = await searchHarness({
+        input: initial,
+        catalog,
+        bake: temporaryBake,
+        signal,
+        onProgress,
+        goal,
+        choose: modelSelect.value ? async (value, candidates, recipe, runSignal) => {
+            const { result: choice } = await askOllama(agentPrompt(value, candidates, recipe, goal), runSignal, { numPredict: 256, think: false });
+            return choice;
+        } : null,
+        judge: modelSelect.value ? async (before, step, after, recipe, runSignal) => {
+            const { result: verdict } = await askOllama(directionPrompt(outputFacts(before), step, outputFacts(after), recipe), runSignal, { numPredict: 160, think: false });
+            return verdict;
+        } : null
+    });
+    return { ...result, elapsedMs: performance.now() - started };
 }
 
 async function runIterativeSolve() {
@@ -690,7 +542,7 @@ async function runIterativeSolve() {
     hideProposal();
     startAnalysisTimer("Preparing local analysis");
     try {
-        const result = await solveTemporarily(initial, agentController.signal, setAnalysisPhase);
+        const result = await solveTemporarily(initial, agentController.signal, setAnalysisPhase, analysisGoal.value.trim());
         const finalFacts = outputFacts(result.current);
         let reviewText = "MODEL REVIEW\nNo local Ollama model was selected, so this result is local verification only.";
         if (modelSelect.value) {
@@ -725,17 +577,18 @@ async function runIterativeSolve() {
 
 askButton.addEventListener("click", runIterativeSolve);
 
-async function runScorecard(mode) {
+async function runScorecard(mode, engine = "model") {
     if (evaluationController || agentController) return;
-    if (!modelSelect.value) {
+    if (engine === "model" && !modelSelect.value) {
         scoreSummary.textContent = "Select a local Ollama model before running its scorecard.";
         return;
     }
     const cases = mode === "quick" ? evaluationCases.filter((evaluationCase) => evaluationCase.quick) : evaluationCases;
-    const runLabel = mode === "quick" ? "Quick scorecard" : "Full scorecard";
+    const runLabel = `${engine === "harness" ? "Harness" : "Model"} ${mode} scorecard`;
     let catalog;
     try {
-        catalog = scorecardOperationCatalog(cases);
+        if (engine === "model") catalog = scorecardOperationCatalog(cases);
+        else if (!chefFrame.contentWindow?.app?.operations) throw new Error("CyberChef is still loading.");
     } catch (error) {
         scoreSummary.textContent = `${runLabel} cannot start: ${error.message}`;
         return;
@@ -756,21 +609,30 @@ async function runScorecard(mode) {
                 emergencyStopped = true;
                 break;
             }
-            scoreSummary.textContent = `${modelSelect.value} · ${runLabel.toLowerCase()} · asking case ${index + 1}/${cases.length}: ${evaluationCase.label}…`;
+            scoreSummary.textContent = `${runLabel} · case ${index + 1}/${cases.length}: ${evaluationCase.label}…`;
             const started = performance.now();
             try {
-                const { result } = await askOllama(modelRecipePrompt(evaluationCase.input, evaluationCase.rationale, catalog), evaluationController.signal, {
-                    numPredict: HARNESS_LIMITS.scorecardNumPredict,
-                    think: false,
-                    keepAlive: "10m",
-                    onProgress: ({ responseCharacters, thinkingCharacters, phase }) => {
-                        const progress = phase === "thinking" ? `${thinkingCharacters} thinking characters` : `${responseCharacters} answer characters`;
-                        scoreSummary.textContent = `${modelSelect.value} · ${runLabel.toLowerCase()} · case ${index + 1}/${cases.length}: model is responding (${progress})…`;
-                    }
-                });
+                let score;
+                if (engine === "harness") {
+                    const result = await solveTemporarily(evaluationCase.input, evaluationController.signal, (phase) => {
+                        scoreSummary.textContent = `${runLabel} · case ${index + 1}/${cases.length}: ${phase}`;
+                    });
+                    score = scoreAgentRun(result.recipe.map((step) => step.op), asText(result.current), evaluationCase);
+                } else {
+                    const { result } = await askOllama(modelRecipePrompt(evaluationCase.input, evaluationCase.rationale, catalog), evaluationController.signal, {
+                        numPredict: HARNESS_LIMITS.scorecardNumPredict,
+                        think: false,
+                        keepAlive: "10m",
+                        onProgress: ({ responseCharacters, thinkingCharacters, phase }) => {
+                            const progress = phase === "thinking" ? `${thinkingCharacters} thinking characters` : `${responseCharacters} answer characters`;
+                            scoreSummary.textContent = `${runLabel} · case ${index + 1}/${cases.length}: model is responding (${progress})…`;
+                        }
+                    });
+                    score = scoreModelResponse(result, evaluationCase);
+                }
                 results.push({
                     evaluationCase,
-                    score: scoreModelResponse(result, evaluationCase),
+                    score,
                     latencyMs: performance.now() - started
                 });
             } catch (error) {
@@ -782,13 +644,13 @@ async function runScorecard(mode) {
                 });
             }
         }
-        renderScorecard(results, emergencyStopped ? `${runLabel} reached the ${Math.round(HARNESS_LIMITS.scorecardEmergencyMs / 60000)} minute safety limit.` : `${runLabel} completed.`);
+        renderScorecard(results, emergencyStopped ? `${runLabel} reached the ${Math.round(HARNESS_LIMITS.scorecardEmergencyMs / 60000)} minute safety limit.` : `${runLabel} completed.`, engine);
     } catch (error) {
         if (error.name === "AbortError") {
-            if (results.length) renderScorecard(results, `${runLabel} cancelled after ${results.length}/${cases.length} cases.`);
+            if (results.length) renderScorecard(results, `${runLabel} cancelled after ${results.length}/${cases.length} cases.`, engine);
             else scoreSummary.textContent = `${runLabel} cancelled before a case completed.`;
         } else {
-            if (results.length) renderScorecard(results, `${runLabel} stopped: ${error.message}`);
+            if (results.length) renderScorecard(results, `${runLabel} stopped: ${error.message}`, engine);
             else scoreSummary.textContent = `${runLabel} stopped: ${error.message}`;
         }
     } finally {
@@ -803,6 +665,8 @@ async function runScorecard(mode) {
 
 scoreQuickButton.addEventListener("click", () => runScorecard("quick"));
 scoreFullButton.addEventListener("click", () => runScorecard("full"));
+harnessQuickButton.addEventListener("click", () => runScorecard("quick", "harness"));
+harnessFullButton.addEventListener("click", () => runScorecard("full", "harness"));
 applyProposal.addEventListener("click", () => {
     const app = chefFrame.contentWindow?.app;
     const rechecked = validateProposal(proposedSteps.map(({ op, args, confidence, why }) => ({ operation: op, args, confidence, why })));
@@ -844,6 +708,7 @@ fileDrop.addEventListener("drop", (event) => {
 analyzeFile.addEventListener("click", () => {
     if (!fileTriage) return;
     workspace = null;
+    analysisGoal.value = "";
     prompt.value = fileTriagePrompt(fileTriage);
     workspaceSummary.textContent = `Local report attached for ${fileTriage.name}.`;
     hideProposal();
@@ -855,6 +720,7 @@ analyzeFile.addEventListener("click", () => {
 document.querySelector("#send-output").addEventListener("click", () => {
     try {
         workspace = readChefWorkspace();
+        analysisGoal.value = "";
         prompt.value = workspacePreview(workspace);
         const ops = workspace.recipe.length ? `${workspace.recipe.length} recipe operation${workspace.recipe.length === 1 ? "" : "s"}` : "no recipe operations";
         workspaceSummary.textContent = `Chef workspace attached: ${workspace.input.length} input chars, ${workspace.output.length} output chars, ${ops}.`;
