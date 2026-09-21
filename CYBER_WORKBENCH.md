@@ -27,7 +27,13 @@ The visible prompt is pre-filled with the workspace summary so the user can insp
 
 The harness indexes the exact operation definitions from the embedded CyberChef build, then retrieves a shortlist for each intermediate value. It verifies argument defaults, excludes flow-control and manually baked operations from automatic trials, and does not invent absent keys, IVs, or other secrets. The selected Ollama model may reorder candidate operations and review their results; real CyberChef execution and the ten-trial search limit remain authoritative. Alternate branches are preserved so a failed step can be rolled back. An optional user goal steers operation retrieval.
 
-The AI panel offers separate **Model** scorecards for one-shot model planning and **Harness** scorecards for the same end-to-end search used by **Analyze locally**. Each can run the four-case Quick or 15-case Full corpus. The bundled synthetic corpus is a regression check, not proof that arbitrary cryptography has been solved. A versioned cryptography RAG is planned, not yet present.
+The AI panel offers separate **Model** scorecards for one-shot model planning and **Harness** scorecards for the same end-to-end search used by **Analyze locally**. Each can run the four-case Quick or 15-case Full corpus. The bundled synthetic corpus is a regression check, not proof that arbitrary cryptography has been solved.
+
+### Cryptography RAG
+
+`desktop/cryptoRag.mjs` is a versioned local knowledge-card corpus shared by every installed Ollama model. Retrieval is deterministic and local: it scores card tags, input indicators, the user goal, candidate operation names, and kept recipe steps. The prompt receives at most four relevant cards. The RAG contains safe-use rules for layered encodings, compression, JWT, symmetric encryption, KDFs, hashes, public-key/PGP data, XOR, classical ciphers, and authentication primitives.
+
+RAG content is advisory only. It cannot add an operation outside the active CyberChef catalog, provide an absent secret, replace recipe-argument validation, or claim that a decoded JWT was verified. Temporary CyberChef execution is still the authority.
 
 Requests show an elapsed timer and can be cancelled with `AbortController`.
 

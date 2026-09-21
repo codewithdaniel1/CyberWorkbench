@@ -47,7 +47,7 @@ The harness streams model output and allows active reasoning to continue. It sto
 
 ### 6. CyberChef RAG — local cryptography and operation knowledge
 
-Build a versioned, local-only CyberChef RAG shared by every installed Ollama model. It should retrieve a small set of relevant knowledge cards rather than paste a large document into every prompt. The first corpus should include exact CyberChef operation names and parameter rules, encoding and file-format indicators, common operation chains, cryptography prerequisites, known false-positive patterns, and safe-abstention rules.
+Initial release completed: a versioned, local-only CyberChef Cryptography RAG is shared by every installed Ollama model. It retrieves up to four relevant knowledge cards based on the input, user goal, live candidate operations, and kept recipe steps. The first corpus covers layered encodings, compression, JWT limits, symmetric prerequisites, KDFs, hashes, PGP/public keys, XOR, classical ciphers, and signatures.
 
 Examples of essential constraints: AES requires validated mode, key, IV, and ciphertext; hashes are one-way; PGP requires the appropriate private key or passphrase; JWT decoding does not verify a JWT. The RAG should improve grounded recipe suggestions, but CyberChef validation and temporary execution remain the authority.
 
