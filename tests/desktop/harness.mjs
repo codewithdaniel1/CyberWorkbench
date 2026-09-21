@@ -69,4 +69,19 @@ const branch = await searchHarness({
 assert.deepEqual(branch.recipe.map((step) => step.op), ["Decode B"]);
 assert.equal(branch.trials, 2);
 
+// A model review may be wrong. Locally verified, reversible format evidence
+// must survive that vote regardless of which detector produced it.
+const deterministicCatalog = buildOperationCatalog({
+    "From HTML Entity": { args: [], inputType: "string", outputType: "string", description: "Decode HTML entities" }
+});
+const deterministic = await searchHarness({
+    input: "message&#x3A; solved",
+    catalog: deterministicCatalog,
+    bake: async () => "message: solved",
+    judge: async () => ({ decision: "rollback" }),
+    limits: { maxTrials: 3, maxSteps: 2, maxBytes: 1048576 }
+});
+assert.deepEqual(deterministic.recipe.map((step) => step.op), ["From HTML Entity"]);
+assert.equal(deterministic.trials, 1);
+
 console.log("Cyber Workbench full-catalog harness evaluation passed.");

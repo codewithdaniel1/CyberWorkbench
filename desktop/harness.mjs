@@ -87,7 +87,14 @@ export async function searchHarness({
         if (!candidate) continue;
         if (state.candidates.length) frontier.push(state);
         const resolved = resolveOperationArguments(candidate.definitions, candidate.proposedArgs || []);
-        const step = { op: candidate.name, args: resolved.args, confidence: candidate.name === verifiedNextStep(state.value)?.op ? "high" : "medium", why: candidate.description.slice(0, 180) || "Candidate from the live CyberChef catalog." };
+        const verified = verifiedNextStep(state.value);
+        const deterministic = candidate.name === verified?.op;
+        const step = {
+            op: candidate.name,
+            args: resolved.args,
+            confidence: deterministic ? "high" : "medium",
+            why: deterministic ? verified.why : candidate.description.slice(0, 180) || "Candidate from the live CyberChef catalog."
+        };
         trials++;
         if (resolved.errors.length || resolved.missing.length) {
             trace.push(`Trial ${trials}: skipped ${step.op} — ${[...resolved.errors, ...resolved.missing.map((name) => `requires ${name}`)].join(" ")}`);
@@ -118,7 +125,10 @@ export async function searchHarness({
         seen.add(hash);
         const nextVerified = verifiedNextStep(next);
         let decision = "keep";
-        if (!nextVerified && judge) {
+        // A format detector is evidence gathered locally from the actual input.
+        // A model can guide ambiguous branches, but cannot veto a successful,
+        // reversible transformation that the detector established.
+        if (!deterministic && !nextVerified && judge) {
             onProgress(`Trial ${trials}/${limits.maxTrials}: checking ${step.op}'s result…`);
             try {
                 const verdict = await judge(state.value, step, next, state.recipe, signal);
